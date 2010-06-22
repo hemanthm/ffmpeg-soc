@@ -1,0 +1,94 @@
+This is the libavfilter SoC project!
+
+Here is what to do to try it out:
+
+1) execute the checkout.sh script
+2) change directory to ffmpeg and run configure with --enable-avfilter
+3) make
+4) run it!
+
+Note: in order to enable the movie filter you need to add the
+--enable-avfilter-lavf to the configure command.
+
+ffmpeg -filters will show you the list of filters/sources/sinks
+enabled.
+
+If you want to update the libavfilter repository after the first
+checkout, you will need to revert all the changes done in the ffmpeg
+tree before to run checkout.sh again.
+You can do it by running the command:
+cd ffmpeg; svn revert -R *
+
+WRITING FILTERS:
+
+There is some documentation on writing basic filters over at the multimedia
+wiki. See http://wiki.multimedia.cx/index.php?title=FFmpeg_filter_howto
+
+THE RIGHT DEVELOPMENT DIRECTION:
+
+libavfilter IS a graphics library; therefore for:
+
+- drawing text
+    Create a single drawtext filter using freetype
+- supporting filters from libmpcodecs
+    Create a single filter that links to libmpcodecs
+- supporting filters from gimp
+    Create a a single filter that links to it
+- reading images
+    Create a filter using libavcodec
+- blending two things
+    Create a single filter doing the blending using C
+
+And for the rest use ANSI C.
+
+THE WRONG DIRECTION:
+
+libavfilter IS NOT a wrapper around another graphics library.
+It is libavfilter's job to work with pixels; it IS NOT its job to call
+a random_lib(). That would be the last resort if all else fails.
+
+And in that remote case, there must be a need, a specific thing we
+are not able to do easily with a few lines of ANSI C: something like
+using libfreetype to render text.
+
+RUNNING IT:
+
+The command line syntax for specifying filters is similar to that of mplayer.
+For example, to vertically flip a video, you would do:
+
+./ffplay -vf vflip input_video.avi
+
+The argument to -vf lists the video filters to load.  A comma separates
+sequential filters.  For example, this command:
+
+./ffplay -vf vflip,vflip input_video.avi
+
+will run the video through two instances of the vflip filter, which should
+result in the original, unflipped video.
+
+Some filters accept parameters, which can be specified in the same way as
+would be done for mplayer.  For example, to scale a video to 640x480, you
+could use this command:
+
+./ffplay -vf scale=640:480 input_video.avi
+
+Be aware that some filters, notably the crop filter, interpret the parameters
+differently than mplayer does.  Documentation for each filter is provided in the
+doc/libavfilter.html file.
+
+One of the interesting features of libavfilter is the ability for filters to
+have multiple inputs and multiple outputs.  Unfortunately, ffplay cannot feed
+multiple video streams to the filter system, and cannot handle multiple output
+streams.
+
+KNOWN ISSUES:
+- the -padtop, -padbottom, -padleft, -padright, -padcolor options of
+  ffmgeg do not work correctly when libavfilter is enabled, and they
+  are going to be deprecated/dropped when libavfilter will be
+  integrated in the main repository. Use the pad filter instead.
+
+- if for some reason the filter chain cannot be setup (due to an unknown
+  filter, bad parameters to a filter, or for some reason two filters cannot
+  be linked together successfully, for example), ffplay will not display any
+  video.  It is also somewhat lacking error messages to tell you what the
+  problem was.

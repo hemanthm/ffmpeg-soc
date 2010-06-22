@@ -60,6 +60,22 @@ void avfilter_unref_pic(AVFilterPicRef *ref)
     av_free(ref);
 }
 
+AVFilterSamplesRef *avfilter_ref_samples(AVFilterSamplesRef *ref, int pmask)
+{
+    AVFilterSamplesRef *ret = av_malloc(sizeof(AVFilterSamplesRef));
+    *ret = *ref;
+    ret->perms &= pmask;
+    ret->buffer->refcount++;
+    return ret;
+}
+
+void avfilter_unref_samples(AVFilterSamplesRef *ref)
+{
+    if(!(--ref->buffer->refcount))
+        ref->buffer->free(ref->buffer);
+    av_free(ref);
+}
+
 void avfilter_insert_pad(unsigned idx, unsigned *count, size_t padidx_off,
                          AVFilterPad **pads, AVFilterLink ***links,
                          AVFilterPad *newpad)
@@ -97,7 +113,9 @@ int avfilter_link(AVFilterContext *src, unsigned srcpad,
     link->dst     = dst;
     link->srcpad  = srcpad;
     link->dstpad  = dstpad;
+    link->type    = src->output_pads[srcpad].type;
     link->format  = PIX_FMT_NONE;
+    link->aformat = SAMPLE_FMT_NONE;
 
     return 0;
 }
@@ -210,6 +228,20 @@ AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int w, 
     return ret;
 }
 
+AVFilterSamplesRef *avfilter_get_audio_buffer(AVFilterLink *link, int perms, int size,
+                                              int64_t channel_layout, enum SampleFormat sample_fmt, int planar)
+{
+    AVFilterSamplesRef *ret = NULL;
+
+    if(link_dpad(link).get_audio_buffer)
+        ret = link_dpad(link).get_audio_buffer(link, perms, size, channel_layout, sample_fmt, planar);
+
+    if(!ret)
+        ret = avfilter_default_get_audio_buffer(link, perms, size, channel_layout, sample_fmt, planar);
+
+    return ret;
+}
+
 int avfilter_request_frame(AVFilterLink *link)
 {
     DPRINTF_START(NULL, request_frame); dprintf_link(NULL, link, 1);
@@ -221,6 +253,14 @@ int avfilter_request_frame(AVFilterLink *link)
     else return -1;
 }
 
+int avfilter_request_samples(AVFilterLink *link)
+{
+    if(link_spad(link).request_samples)
+        return link_spad(link).request_samples(link);
+    else if(link->src->inputs[0])
+        return avfilter_request_samples(link->src->inputs[0]);
+    else return AVERROR(EINVAL);
+}
 int avfilter_poll_frame(AVFilterLink *link)
 {
     int i, min=INT_MAX;
@@ -332,6 +372,31 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
     if(!(draw_slice = link_dpad(link).draw_slice))
         draw_slice = avfilter_default_draw_slice;
     draw_slice(link, y, h, slice_dir);
+}
+
+void avfilter_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
+{
+    void (*filter_samples)(AVFilterLink *, AVFilterSamplesRef *);
+    AVFilterPad *dst = &link_dpad(link);
+
+    if(!(filter_samples = dst->filter_samples))
+        filter_samples = avfilter_default_filter_samples;
+
+    /* prepare to copy the samples if the buffer has insufficient permissions */
+    if((dst->min_perms & samplesref->perms) != dst->min_perms ||
+        dst->rej_perms & samplesref->perms) {
+
+        link->cur_samples = avfilter_default_get_audio_buffer(link, dst->min_perms,
+                                                              samplesref->size, samplesref->channel_layout,
+                                                              samplesref->sample_fmt, samplesref->planar);
+        link->cur_samples->pts            = samplesref->pts;
+        link->cur_samples->sample_rate    = samplesref->sample_rate;
+        avfilter_unref_samples(samplesref);
+    }
+    else
+        link->cur_samples = samplesref;
+
+    filter_samples(link, link->cur_samples);
 }
 
 #define MAX_REGISTERED_AVFILTERS_NB 64

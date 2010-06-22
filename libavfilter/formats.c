@@ -39,6 +39,13 @@ static void merge_ref(AVFilterFormats *ret, AVFilterFormats *a)
     av_free(a);
 }
 
+#define CMP_AND_ADD(acount, bcount, afmt, bfmt, retfmt) { \
+    for(i = 0; i < acount; i++) \
+        for(j = 0; j < bcount; j++) \
+            if(afmt[i] == bfmt[j]) \
+                retfmt[k++] = afmt[i]; \
+}        
+
 AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
 {
     AVFilterFormats *ret;
@@ -46,13 +53,17 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
 
     ret = av_mallocz(sizeof(AVFilterFormats));
 
-    /* merge list of formats */
-    ret->formats = av_malloc(sizeof(*ret->formats) * FFMIN(a->format_count,
+    if(a->type == AVMEDIA_TYPE_VIDEO) {
+        /* merge list of formats */
+        ret->formats = av_malloc(sizeof(*ret->formats) * FFMIN(a->format_count,
                                                            b->format_count));
-    for(i = 0; i < a->format_count; i ++)
-        for(j = 0; j < b->format_count; j ++)
-            if(a->formats[i] == b->formats[j])
-                ret->formats[k++] = a->formats[i];
+        CMP_AND_ADD(a->format_count, b->format_count, a->formats, b->formats, ret->formats);
+    } else if(a->type == AVMEDIA_TYPE_AUDIO) {
+        /* merge list of formats */
+        ret->aformats = av_malloc(sizeof(*ret->aformats) * FFMIN(a->format_count,
+                                                           b->format_count));
+        CMP_AND_ADD(a->format_count, b->format_count, a->aformats, b->aformats, ret->aformats);
+    }
 
     ret->format_count = k;
     /* check that there was at least one common format */
@@ -81,6 +92,7 @@ AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts)
     formats               = av_mallocz(sizeof(AVFilterFormats));
     formats->formats      = av_malloc(sizeof(*formats->formats) * count);
     formats->format_count = count;
+    formats->type = AVMEDIA_TYPE_VIDEO;
     memcpy(formats->formats, pix_fmts, sizeof(*formats->formats) * count);
 
     return formats;
@@ -111,6 +123,51 @@ AVFilterFormats *avfilter_all_colorspaces(void)
     for (pix_fmt = 0; pix_fmt < PIX_FMT_NB; pix_fmt++)
         if (!(av_pix_fmt_descriptors[pix_fmt].flags & PIX_FMT_HWACCEL))
             avfilter_add_colorspace(&ret, pix_fmt);
+
+    return ret;
+}
+
+AVFilterFormats *avfilter_make_aformat_list(const enum SampleFormat *sample_fmts)
+{
+    AVFilterFormats *formats;
+    int count;
+
+    for (count = 0; sample_fmts[count] != SAMPLE_FMT_NONE; count++)
+        ;
+
+    formats               = av_mallocz(sizeof(AVFilterFormats));
+    formats->aformats     = av_malloc(sizeof(*formats->aformats) * count);
+    formats->format_count = count;
+    formats->type = AVMEDIA_TYPE_AUDIO;
+    memcpy(formats->aformats, sample_fmts, sizeof(*formats->aformats) * count);
+
+    return formats;
+}
+
+int avfilter_add_sampleformat(AVFilterFormats **avff, enum SampleFormat sample_fmt)
+{
+    enum SampleFormat *sample_fmts;
+
+    if (!(*avff) && !(*avff = av_mallocz(sizeof(AVFilterFormats))))
+        return AVERROR(ENOMEM);
+
+    sample_fmts = av_realloc((*avff)->aformats,
+                          sizeof((*avff)->aformats) * ((*avff)->format_count+1));
+    if (!sample_fmts)
+        return AVERROR(ENOMEM);
+
+    (*avff)->aformats = sample_fmts;
+    (*avff)->aformats[(*avff)->format_count++] = sample_fmt;
+    return 0;
+}
+
+AVFilterFormats *avfilter_all_sampleformats(void)
+{
+    AVFilterFormats *ret = NULL;
+    enum SampleFormat sample_fmt;
+
+    for (sample_fmt = 0; sample_fmt < SAMPLE_FMT_NB; sample_fmt++)
+        avfilter_add_sampleformat(&ret, sample_fmt);
 
     return ret;
 }
@@ -146,6 +203,7 @@ void avfilter_formats_unref(AVFilterFormats **ref)
 
     if(!--(*ref)->refcount) {
         av_free((*ref)->formats);
+        av_free((*ref)->aformats);
         av_free((*ref)->refs);
         av_free(*ref);
     }

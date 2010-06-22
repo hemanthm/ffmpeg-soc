@@ -170,7 +170,10 @@ static void pick_format(AVFilterLink *link)
         return;
 
     link->in_formats->format_count = 1;
-    link->format = link->in_formats->formats[0];
+    if (link->type == AVMEDIA_TYPE_VIDEO)
+        link->format = link->in_formats->formats[0];
+    else if (link->type == AVMEDIA_TYPE_AUDIO)
+        link->aformat = link->in_formats->aformats[0];
 
     avfilter_formats_unref(&link->in_formats);
     avfilter_formats_unref(&link->out_formats);

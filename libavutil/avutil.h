@@ -85,5 +85,6 @@ enum AVMediaType {
 #include "intfloat_readwrite.h"
 #include "log.h"
 #include "pixfmt.h"
+#include "audiofmt.h"
 
 #endif /* AVUTIL_AVUTIL_H */

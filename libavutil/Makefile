@@ -22,6 +22,8 @@ HEADERS = adler32.h                                                     \
           pixfmt.h                                                      \
           random_seed.h                                                 \
           rational.h                                                    \
+          sampledesc.h                                                  \
+          samplefmt.h                                                   \
           sha1.h                                                        \
 
 BUILT_HEADERS = avconfig.h
@@ -47,6 +49,7 @@ OBJS = adler32.o                                                        \
        random_seed.o                                                    \
        rational.o                                                       \
        rc4.o                                                            \
+       sampledesc.o                                                     \
        sha.o                                                            \
        tree.o                                                           \
        utils.o                                                          \

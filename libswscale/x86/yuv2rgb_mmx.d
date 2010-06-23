@@ -5,5 +5,6 @@ libswscale/x86/yuv2rgb_mmx.o: libswscale/x86/yuv2rgb_mmx.c config.h \
  libavutil/timer.h libavutil/x86/timer.h libavutil/libm.h \
  libavutil/error.h libavutil/avutil.h libavutil/mathematics.h \
  libavutil/rational.h libavutil/intfloat_readwrite.h libavutil/log.h \
- libavutil/pixfmt.h libavutil/avconfig.h libswscale/swscale_internal.h \
- libavutil/x86_cpu.h libswscale/x86/yuv2rgb_template.c
+ libavutil/pixfmt.h libavutil/avconfig.h libavutil/audiofmt.h \
+ libswscale/swscale_internal.h libavutil/x86_cpu.h \
+ libswscale/x86/yuv2rgb_template.c

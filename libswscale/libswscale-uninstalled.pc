@@ -1,7 +1,7 @@
 prefix=
 exec_prefix=
 libdir=${pcfiledir}
-includedir=/home/hemanth/Devel/ffmpeg_soc/ffmpeg
+includedir=/home/hemanth/Devel/ffmpeg_git/trunk
 
 Name: libswscale
 Description: FFmpeg image rescaling library

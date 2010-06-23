@@ -4,6 +4,8 @@ NAME = avutil
 
 HEADERS = adler32.h                                                     \
           attributes.h                                                  \
+          audiodesc.h                                                   \
+          audiofmt.h                                                    \
           avstring.h                                                    \
           avutil.h                                                      \
           base64.h                                                      \
@@ -22,14 +24,13 @@ HEADERS = adler32.h                                                     \
           pixfmt.h                                                      \
           random_seed.h                                                 \
           rational.h                                                    \
-          sampledesc.h                                                  \
-          samplefmt.h                                                   \
           sha1.h                                                        \
 
 BUILT_HEADERS = avconfig.h
 
 OBJS = adler32.o                                                        \
        aes.o                                                            \
+       audiodesc.o                                                      \
        avstring.o                                                       \
        base64.o                                                         \
        crc.o                                                            \
@@ -49,7 +50,6 @@ OBJS = adler32.o                                                        \
        random_seed.o                                                    \
        rational.o                                                       \
        rc4.o                                                            \
-       sampledesc.o                                                     \
        sha.o                                                            \
        tree.o                                                           \
        utils.o                                                          \

@@ -228,16 +228,16 @@ AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int w, 
     return ret;
 }
 
-AVFilterSamplesRef *avfilter_get_audio_buffer(AVFilterLink *link, int perms, int size,
+AVFilterSamplesRef *avfilter_get_samples_ref(AVFilterLink *link, int perms, int size,
                                               int64_t channel_layout, enum SampleFormat sample_fmt, int planar)
 {
     AVFilterSamplesRef *ret = NULL;
 
-    if(link_dpad(link).get_audio_buffer)
-        ret = link_dpad(link).get_audio_buffer(link, perms, size, channel_layout, sample_fmt, planar);
+    if(link_dpad(link).get_samples_ref)
+        ret = link_dpad(link).get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
 
     if(!ret)
-        ret = avfilter_default_get_audio_buffer(link, perms, size, channel_layout, sample_fmt, planar);
+        ret = avfilter_default_get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
 
     return ret;
 }
@@ -386,7 +386,7 @@ void avfilter_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
     if((dst->min_perms & samplesref->perms) != dst->min_perms ||
         dst->rej_perms & samplesref->perms) {
 
-        link->cur_samples = avfilter_default_get_audio_buffer(link, dst->min_perms,
+        link->cur_samples = avfilter_default_get_samples_ref(link, dst->min_perms,
                                                               samplesref->size, samplesref->channel_layout,
                                                               samplesref->sample_fmt, samplesref->planar);
         link->cur_samples->pts            = samplesref->pts;

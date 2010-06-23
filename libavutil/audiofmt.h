@@ -33,7 +33,7 @@
 
 /* Sample format. */
 
-/*
+/**
  * all in native-endian format
  */
 enum SampleFormat {

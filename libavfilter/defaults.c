@@ -21,7 +21,7 @@
 
 #include "libavcodec/imgconvert.h"
 #include "avfilter.h"
-#include "libavcodec/audioconvert.h"
+#include "libavutil/audiodesc.h"
 
 /* TODO: buffer pool.  see comment for avfilter_default_get_video_buffer() */
 static void avfilter_default_free_video_buffer(AVFilterPic *pic)
@@ -72,13 +72,13 @@ AVFilterPicRef *avfilter_default_get_video_buffer(AVFilterLink *link, int perms,
     return ref;
 }
 
-AVFilterSamplesRef *avfilter_default_get_audio_buffer(AVFilterLink *link, int perms,
+AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int perms,
                                                       int size, int64_t channel_layout,
                                                       enum SampleFormat sample_fmt, int planar)
 {
     AVFilterBuffer *buffer = av_mallocz(sizeof(AVFilterBuffer));
     AVFilterSamplesRef *ref = av_mallocz(sizeof(AVFilterSamplesRef));
-    int i, sampsize, numchan, bufsize, per_channel_size, stepsize = 0;
+    int i, sample_size, num_chans, bufsize, per_channel_size, step_size = 0;
     char *buf;
 
     ref->buffer         = buffer;
@@ -93,20 +93,19 @@ AVFilterSamplesRef *avfilter_default_get_audio_buffer(AVFilterLink *link, int pe
     buffer->refcount   = 1;
     buffer->free       = avfilter_default_free_audio_buffer;
 
-    sampsize = (av_get_bits_per_sample_format(sample_fmt))>>3;
-    numchan = avcodec_channel_layout_num_channels(channel_layout);
+    sample_size = (av_get_bits_per_sample_fmt(sample_fmt))>>3;
+    num_chans = av_channel_layout_num_channels(channel_layout);
 
-    per_channel_size = size/numchan;
-    ref->samples_nb = per_channel_size/sampsize;
+    per_channel_size = size/num_chans;
+    ref->samples_nb = per_channel_size/sample_size;
 
     /* Set the number of bytes to traverse to reach next sample of a particular channel:
      * For planar, this is simply the sample size.
      * For packed, this is the number of samples * sample_size.
      */
-    for (i = 0; i < numchan; i++)
-        buffer->linesize[i] = (planar > 0)?(per_channel_size):sampsize;
-    for (i = numchan+1; i < 8; i++)
-        buffer->linesize[i] = 0;
+    for (i = 0; i < num_chans; i++)
+        buffer->linesize[i] = (planar > 0)?(per_channel_size):sample_size;
+    memset(&buffer->linesize[num_chans], 0, (8-num_chans)*sizeof(buffer->linesize[0]));
 
     /* Calculate total buffer size, round to multiple of 16 to be SIMD friendly */
     bufsize = (size + 15)&~15;
@@ -117,14 +116,14 @@ AVFilterSamplesRef *avfilter_default_get_audio_buffer(AVFilterLink *link, int pe
      */
     buffer->data[0] = buf;
     if(planar > 0) {
-        for(i = 1; i < numchan; i++) {
-            stepsize += per_channel_size;
-            buffer->data[i] = buf + stepsize;
+        for(i = 1; i < num_chans; i++) {
+            step_size += per_channel_size;
+            buffer->data[i] = buf + step_size;
         }
     } else {
-        memset(&buffer->data[1], (long)buf, (numchan-1)*sizeof(buffer->data[0]));
+        memset(&buffer->data[1], (long)buf, (num_chans-1)*sizeof(buffer->data[0]));
     }
-    memset(&buffer->data[numchan], 0, (8-numchan)*sizeof(buffer->data[0]));
+    memset(&buffer->data[num_chans], 0, (8-num_chans)*sizeof(buffer->data[0]));
 
     memcpy(ref->data,     buffer->data,     sizeof(buffer->data));
     memcpy(ref->linesize, buffer->linesize, sizeof(buffer->linesize));
@@ -188,12 +187,12 @@ void avfilter_default_filter_samples(AVFilterLink *link, AVFilterSamplesRef *sam
         out = link->dst->outputs[0];
 
     if(out) {
-        out->outsamples = avfilter_default_get_audio_buffer(link, AV_PERM_WRITE, samplesref->size,
+        out->out_samples = avfilter_default_get_samples_ref(link, AV_PERM_WRITE, samplesref->size,
                                                             samplesref->channel_layout,
                                                             samplesref->sample_fmt, samplesref->planar);
-        out->outsamples->pts            = samplesref->pts;
-        out->outsamples->sample_rate    = samplesref->sample_rate;
-        avfilter_filter_samples(out, avfilter_ref_samples(out->outsamples, ~0));
+        out->out_samples->pts            = samplesref->pts;
+        out->out_samples->sample_rate    = samplesref->sample_rate;
+        avfilter_filter_samples(out, avfilter_ref_samples(out->out_samples, ~0));
     }
 }
 
@@ -278,11 +277,11 @@ AVFilterPicRef *avfilter_null_get_video_buffer(AVFilterLink *link, int perms, in
     return avfilter_get_video_buffer(link->dst->outputs[0], perms, w, h);
 }
 
-AVFilterSamplesRef *avfilter_null_get_audio_buffer(AVFilterLink *link, int perms, int size,
+AVFilterSamplesRef *avfilter_null_get_samples_ref(AVFilterLink *link, int perms, int size,
                                                    int64_t channel_layout,
                                                    enum SampleFormat sample_fmt, int packed)
 {
-    return avfilter_get_audio_buffer(link->dst->outputs[0], perms, size,
+    return avfilter_get_samples_ref(link->dst->outputs[0], perms, size,
                                      channel_layout, sample_fmt, packed);
 }
 

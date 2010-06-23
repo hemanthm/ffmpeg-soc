@@ -5,6 +5,6 @@ libswscale/yuv2rgb.o: libswscale/yuv2rgb.c config.h libswscale/rgb2rgb.h \
  libavutil/x86/timer.h libavutil/libm.h libavutil/error.h \
  libavutil/avutil.h libavutil/mathematics.h libavutil/rational.h \
  libavutil/intfloat_readwrite.h libavutil/log.h libavutil/pixfmt.h \
- libavutil/avconfig.h libswscale/swscale.h libswscale/swscale_internal.h \
- libavutil/x86_cpu.h libavutil/bswap.h libavutil/x86/bswap.h \
- libavutil/attributes.h
+ libavutil/avconfig.h libavutil/audiofmt.h libswscale/swscale.h \
+ libswscale/swscale_internal.h libavutil/x86_cpu.h libavutil/bswap.h \
+ libavutil/x86/bswap.h libavutil/attributes.h

@@ -6,5 +6,6 @@ libswscale/rgb2rgb.o: libswscale/rgb2rgb.c config.h libavutil/x86_cpu.h \
  libavutil/timer.h libavutil/x86/timer.h libavutil/libm.h \
  libavutil/error.h libavutil/avutil.h libavutil/mathematics.h \
  libavutil/rational.h libavutil/intfloat_readwrite.h libavutil/log.h \
- libavutil/pixfmt.h libavutil/avconfig.h libswscale/swscale.h \
- libswscale/swscale_internal.h libswscale/rgb2rgb_template.c
+ libavutil/pixfmt.h libavutil/avconfig.h libavutil/audiofmt.h \
+ libswscale/swscale.h libswscale/swscale_internal.h \
+ libswscale/rgb2rgb_template.c

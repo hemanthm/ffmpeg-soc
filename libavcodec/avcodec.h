@@ -368,64 +368,6 @@ enum CodecID {
 #define CODEC_TYPE_NB         AVMEDIA_TYPE_NB
 #endif
 
-/**
- * all in native-endian format
- */
-enum SampleFormat {
-    SAMPLE_FMT_NONE = -1,
-    SAMPLE_FMT_U8,              ///< unsigned 8 bits
-    SAMPLE_FMT_S16,             ///< signed 16 bits
-    SAMPLE_FMT_S32,             ///< signed 32 bits
-    SAMPLE_FMT_FLT,             ///< float
-    SAMPLE_FMT_DBL,             ///< double
-    SAMPLE_FMT_NB               ///< Number of sample formats. DO NOT USE if dynamically linking to libavcodec
-};
-
-/* Audio channel masks */
-#define CH_FRONT_LEFT             0x00000001
-#define CH_FRONT_RIGHT            0x00000002
-#define CH_FRONT_CENTER           0x00000004
-#define CH_LOW_FREQUENCY          0x00000008
-#define CH_BACK_LEFT              0x00000010
-#define CH_BACK_RIGHT             0x00000020
-#define CH_FRONT_LEFT_OF_CENTER   0x00000040
-#define CH_FRONT_RIGHT_OF_CENTER  0x00000080
-#define CH_BACK_CENTER            0x00000100
-#define CH_SIDE_LEFT              0x00000200
-#define CH_SIDE_RIGHT             0x00000400
-#define CH_TOP_CENTER             0x00000800
-#define CH_TOP_FRONT_LEFT         0x00001000
-#define CH_TOP_FRONT_CENTER       0x00002000
-#define CH_TOP_FRONT_RIGHT        0x00004000
-#define CH_TOP_BACK_LEFT          0x00008000
-#define CH_TOP_BACK_CENTER        0x00010000
-#define CH_TOP_BACK_RIGHT         0x00020000
-#define CH_STEREO_LEFT            0x20000000  ///< Stereo downmix.
-#define CH_STEREO_RIGHT           0x40000000  ///< See CH_STEREO_LEFT.
-
-/** Channel mask value used for AVCodecContext.request_channel_layout
-    to indicate that the user requests the channel order of the decoder output
-    to be the native codec channel order. */
-#define CH_LAYOUT_NATIVE          0x8000000000000000LL
-
-/* Audio channel convenience macros */
-#define CH_LAYOUT_MONO              (CH_FRONT_CENTER)
-#define CH_LAYOUT_STEREO            (CH_FRONT_LEFT|CH_FRONT_RIGHT)
-#define CH_LAYOUT_2_1               (CH_LAYOUT_STEREO|CH_BACK_CENTER)
-#define CH_LAYOUT_SURROUND          (CH_LAYOUT_STEREO|CH_FRONT_CENTER)
-#define CH_LAYOUT_4POINT0           (CH_LAYOUT_SURROUND|CH_BACK_CENTER)
-#define CH_LAYOUT_2_2               (CH_LAYOUT_STEREO|CH_SIDE_LEFT|CH_SIDE_RIGHT)
-#define CH_LAYOUT_QUAD              (CH_LAYOUT_STEREO|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_5POINT0           (CH_LAYOUT_SURROUND|CH_SIDE_LEFT|CH_SIDE_RIGHT)
-#define CH_LAYOUT_5POINT1           (CH_LAYOUT_5POINT0|CH_LOW_FREQUENCY)
-#define CH_LAYOUT_5POINT0_BACK      (CH_LAYOUT_SURROUND|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_5POINT1_BACK      (CH_LAYOUT_5POINT0_BACK|CH_LOW_FREQUENCY)
-#define CH_LAYOUT_7POINT0           (CH_LAYOUT_5POINT0|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_7POINT1           (CH_LAYOUT_5POINT1|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_7POINT1_WIDE      (CH_LAYOUT_5POINT1_BACK|\
-                                          CH_FRONT_LEFT_OF_CENTER|CH_FRONT_RIGHT_OF_CENTER)
-#define CH_LAYOUT_STEREO_DOWNMIX    (CH_STEREO_LEFT|CH_STEREO_RIGHT)
-
 /* in bytes */
 #define AVCODEC_MAX_AUDIO_FRAME_SIZE 192000 // 1 second of 48khz 32bit audio
 

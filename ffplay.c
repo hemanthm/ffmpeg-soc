@@ -1789,7 +1789,7 @@ static int input_audio_init(AVFilterContext *ctx, const char *args, void *opaque
 {
     AudioFilterPriv *priv = ctx->priv;
 
-    if(!opaque) return -1;
+    if (!opaque) return AVERROR(EINVAL);
 
     priv->is = opaque;
 
@@ -1804,24 +1804,24 @@ static int input_request_samples(AVFilterLink *link)
 {
     AudioFilterPriv *priv = link->src->priv;
     AVFilterSamplesRef *samplesref;
-    AVCodecContext *c;
+    AVCodecContext *avctx;
     double pts = 0;
     int buf_size = 0;
 
     buf_size = audio_decode_frame(priv->is, &pts);
-    c = priv->is->audio_st->codec;
+    avctx = priv->is->audio_st->codec;
     if (buf_size <= 0)
         return -1;
 
     /* FIXME Currently audio streams seem to have no info on planar/packed.
-     * Assuming packed here and passing 0 as last attribute to get_audio_buffer.
+     * Assuming packed here and passing 0 as last attribute to get_samples_ref.
      */
-    samplesref = avfilter_get_audio_buffer(link, AV_PERM_WRITE, buf_size,
-                                           c->channel_layout, c->sample_fmt, 0);
+    samplesref = avfilter_get_samples_ref(link, AV_PERM_WRITE, buf_size,
+                                           avctx->channel_layout, avctx->sample_fmt, 0);
     memcpy(samplesref->data[0], priv->is->audio_buf, buf_size);
 
     samplesref->pts         = (int64_t) pts;
-    samplesref->sample_rate = (int64_t) c->sample_rate;
+    samplesref->sample_rate = (int64_t) avctx->sample_rate;
     avfilter_filter_samples(link, samplesref);
 
     return 0;
@@ -1878,9 +1878,9 @@ static int get_filtered_audio_samples(AVFilterContext *ctx, VideoState *is, doub
 {
     AVFilterSamplesRef *samplesref;
 
-    if(avfilter_request_samples(ctx->inputs[0]))
+    if (avfilter_request_samples(ctx->inputs[0]))
         return -1;
-    if(!(samplesref = ctx->inputs[0]->cur_samples))
+    if (!(samplesref = ctx->inputs[0]->cur_samples))
         return -1;
     ctx->inputs[0]->cur_samples = NULL;
 
@@ -2406,14 +2406,14 @@ static int stream_component_open(VideoState *is, int stream_index)
 
 #if CONFIG_AVFILTER
     is->agraph = av_mallocz(sizeof(AVFilterGraph));
-    if(!(afilt_src = avfilter_open(&input_audio_filter,  "asrc")))   goto the_end;
-    if(!(afilt_out = avfilter_open(&output_audio_filter, "aout")))   goto the_end;
+    if (!(afilt_src = avfilter_open(&input_audio_filter,  "asrc")))   goto the_end;
+    if (!(afilt_out = avfilter_open(&output_audio_filter, "aout")))   goto the_end;
 
-    if(avfilter_init_filter(afilt_src, NULL, is))             goto the_end;
-    if(avfilter_init_filter(afilt_out, NULL, NULL))           goto the_end;
+    if (avfilter_init_filter(afilt_src, NULL, is))             goto the_end;
+    if (avfilter_init_filter(afilt_out, NULL, NULL))           goto the_end;
 
 
-    if(afilters) {
+    if (afilters) {
         AVFilterInOut *outputs = av_malloc(sizeof(AVFilterInOut));
         AVFilterInOut *inputs  = av_malloc(sizeof(AVFilterInOut));
 
@@ -2431,14 +2431,14 @@ static int stream_component_open(VideoState *is, int stream_index)
             goto the_end;
         av_freep(&afilters);
     } else {
-        if(avfilter_link(afilt_src, 0, afilt_out, 0) < 0)          goto the_end;
+        if (avfilter_link(afilt_src, 0, afilt_out, 0) < 0)          goto the_end;
     }
     avfilter_graph_add_filter(is->agraph, afilt_src);
     avfilter_graph_add_filter(is->agraph, afilt_out);
 
-    if(avfilter_graph_check_validity(is->agraph, NULL))           goto the_end;
-    if(avfilter_graph_config_formats(is->agraph, NULL))           goto the_end;
-    if(avfilter_graph_config_links(is->agraph, NULL))             goto the_end;
+    if (avfilter_graph_check_validity(is->agraph, NULL))           goto the_end;
+    if (avfilter_graph_config_formats(is->agraph, NULL))           goto the_end;
+    if (avfilter_graph_config_links(is->agraph, NULL))             goto the_end;
 
     is->out_audio_filter = afilt_out;
 #endif

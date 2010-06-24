@@ -233,7 +233,7 @@ AVFilterSamplesRef *avfilter_get_samples_ref(AVFilterLink *link, int perms, int 
 {
     AVFilterSamplesRef *ret = NULL;
 
-    if(link_dpad(link).get_samples_ref)
+    if (link_dpad(link).get_samples_ref)
         ret = link_dpad(link).get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
 
     if(!ret)

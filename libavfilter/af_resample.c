@@ -142,12 +142,12 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
      * -1 is a valid value for out_channel_layout and indicates no change in channel layout
      */
     if (resample->out_sample_fmt >= SAMPLE_FMT_NB || resample->out_sample_fmt < SAMPLE_FMT_NONE) {
-        av_log(ctx, AV_LOG_ERROR, "Invalid output sample format.\n");
+        av_log(ctx, AV_LOG_ERROR, "Invalid sample format %d, cannot resample.\n", resample->out_sample_fmt);
         return AVERROR(EINVAL);
     }
     if ((resample->out_channel_layout > CH_LAYOUT_STEREO_DOWNMIX ||
-         resample->out_channel_layout < CH_LAYOUT_MONO) && (resample->out_channel_layout != -1)) {
-        av_log(ctx, AV_LOG_ERROR, "Invalid output sample format.\n");
+         resample->out_channel_layout < CH_LAYOUT_STEREO) && (resample->out_channel_layout != -1)) {
+        av_log(ctx, AV_LOG_ERROR, "Invalid channel layout %ld, cannot resample.\n", resample->out_channel_layout);
         return AVERROR(EINVAL);
     }
 
@@ -157,33 +157,16 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 static av_cold void uninit(AVFilterContext *ctx)
 {
     ResampleContext *resample = ctx->priv;
-    avfilter_unref_samples(resample->temp_samples);
+    if (resample->temp_samples)
+        avfilter_unref_samples(resample->temp_samples);
 }
 
 static int query_formats(AVFilterContext *ctx)
 {
-    AVFilterFormats *formats;
-    enum SampleFormat sample_fmt;
-    int ret;
-
-    if (ctx->inputs[0]) {
-        formats = NULL;
-        for (sample_fmt = 0; sample_fmt < SAMPLE_FMT_NB; sample_fmt++)
-            if ((ret = avfilter_add_sampleformat(&formats, sample_fmt)) < 0) {
-                avfilter_formats_unref(&formats);
-                return ret;
-            }
-        avfilter_formats_ref(formats, &ctx->inputs[0]->out_formats);
-    }
-    if (ctx->outputs[0]) {
-        formats = NULL;
-        for (sample_fmt = 0; sample_fmt < SAMPLE_FMT_NB; sample_fmt++)
-            if ((ret = avfilter_add_colorspace(&formats, sample_fmt)) < 0) {
-                avfilter_formats_unref(&formats);
-                return ret;
-            }
-        avfilter_formats_ref(formats, &ctx->outputs[0]->in_formats);
-    }
+    enum SampleFormat sample_fmts[] = {
+        SAMPLE_FMT_U8, SAMPLE_FMT_S16, SAMPLE_FMT_S32,
+        SAMPLE_FMT_FLT, SAMPLE_FMT_DBL, SAMPLE_FMT_NONE };
+    avfilter_set_common_formats(ctx, avfilter_make_aformat_list(sample_fmts));
 
     return 0;
 }
@@ -205,17 +188,21 @@ static void convert_sample_format(AVFilterLink *link, AVFilterSamplesRef *insamp
     AVFilterSamplesRef *out = resample->temp_samples;
 
     int ch = 0;
-    const int out_channels = av_channel_layout_num_channels(insamples->channel_layout);
-    const int instride     = av_get_bits_per_sample_fmt(insamples->sample_fmt);
-    const int outstride    = av_get_bits_per_sample_fmt(resample->out_sample_fmt);
+    /* Here, out_channels is same as input channels, we are only changing sample format */
+    int out_channels  = av_channel_layout_num_channels(insamples->channel_layout);
+    int out_sample_sz = av_get_bits_per_sample_fmt(resample->out_sample_fmt);
+    int in_sample_sz  = av_get_bits_per_sample_fmt(insamples->sample_fmt);
 
-    const int fmt_pair = insamples->sample_fmt*SAMPLE_FMT_NB*resample->out_sample_fmt;
+    int planar   = insamples->planar;
+    int len      = (planar) ? insamples->samples_nb : insamples->samples_nb*out_channels;
+    int fmt_pair = insamples->sample_fmt*SAMPLE_FMT_NB*resample->out_sample_fmt;
 
     if (resample->reconfig_sample_fmt || !out || !out->size) {
 
-        int size = out_channels*outstride*insamples->samples_nb;
+        int size = out_channels*out_sample_sz*insamples->samples_nb;
 
-        avfilter_unref_samples(resample->temp_samples);
+        if (out)
+            avfilter_unref_samples(out);
         out = avfilter_get_samples_ref(link, AV_PERM_WRITE, size,
                                    insamples->channel_layout, resample->out_sample_fmt, 0);
 
@@ -225,20 +212,21 @@ static void convert_sample_format(AVFilterLink *link, AVFilterSamplesRef *insamp
     out->pts          = insamples->pts;
     out->sample_rate  = insamples->sample_rate;
 
-/* FIXME: Assuming packed samples here */
-    for (ch = 0; ch < out_channels; ch++) {
-        const uint8_t *pi=  insamples->data[ch];
-        uint8_t *po = out->data[ch];
-        const unsigned int len = out->samples_nb*out->channel_layout;
-        uint8_t *end = po + outstride*len;
+    do {
+        const uint8_t *pi =  insamples->data[ch];
+        uint8_t *po   = out->data[ch];
+        int instride  = (planar) ? insamples->linesize[ch] : in_sample_sz;
+        int outstride = (planar) ? out->linesize[ch] : out_sample_sz;
+        uint8_t *end  = po + outstride*len;
+
         if(!out->data[ch])
             continue;
 
 #define CONV(ofmt, otype, ifmt, expr)\
 if (fmt_pair == ofmt + SAMPLE_FMT_NB*ifmt) {\
-    do{\
+    do {\
         *(otype*)po = expr; pi += instride; po += outstride;\
-    }while(po < end);\
+    } while(po < end);\
 }
 
         CONV(SAMPLE_FMT_U8 , uint8_t, SAMPLE_FMT_U8 ,  *(const uint8_t*)pi)
@@ -266,7 +254,9 @@ if (fmt_pair == ofmt + SAMPLE_FMT_NB*ifmt) {\
         else CONV(SAMPLE_FMT_S32, int32_t, SAMPLE_FMT_DBL, av_clipl_int32(llrint(*(const double*)pi * (1U<<31))))
         else CONV(SAMPLE_FMT_FLT, float  , SAMPLE_FMT_DBL, *(const double*)pi)
         else CONV(SAMPLE_FMT_DBL, double , SAMPLE_FMT_DBL, *(const double*)pi)
-    }
+
+    } while (ch < insamples->planar*out_channels);
+
     return;
 }
 
@@ -302,9 +292,9 @@ static void filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
     int n_stride = av_get_bits_per_sample_format(samples);\
     size = nsamp*n_chan*n_stride;\
 }
-    CALC_BUFFER_SIZE(samplesref->samples_nb, outlink->channel_layout, outlink->aformat);
+    CALC_BUFFER_SIZE(samplesref->samples_nb, resample->out_channel_layout, resample->out_sample_fmt);
     outsamples = avfilter_get_samples_ref(outlink, AV_PERM_WRITE, size,
-                                          outlink->channel_layout, outlink->aformat, 0);
+                                          resample->out_channel_layout, resample->out_sample_fmt, 0);
 
     outsamples->pts         = samplesref->pts;
     outsamples->planar      = samplesref->planar;

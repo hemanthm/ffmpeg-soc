@@ -37,7 +37,7 @@
  * all in native-endian format
  */
 enum SampleFormat {
-    SAMPLE_FMT_NONE= -1,
+    SAMPLE_FMT_NONE = -1,
     SAMPLE_FMT_U8,              ///< unsigned 8 bits
     SAMPLE_FMT_S16,             ///< signed 16 bits
     SAMPLE_FMT_S32,             ///< signed 32 bits

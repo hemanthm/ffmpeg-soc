@@ -111,12 +111,13 @@ static int query_formats(AVFilterGraph *graph, AVClass *log_ctx)
     int scaler_count = 0;
     char inst_name[30];
 
-    /* ask all the sub-filters for their supported colorspaces */
+    /* ask all the sub-filters for their supported colorspaces/sample formats */
     for(i = 0; i < graph->filter_count; i ++) {
-        if(graph->filters[i]->filter->query_formats)
+        if(graph->filters[i]->filter->query_formats) {
             graph->filters[i]->filter->query_formats(graph->filters[i]);
-        else
+        } else {
             avfilter_default_query_formats(graph->filters[i]);
+        }
     }
 
     /* go through and merge as many format lists as possible */
@@ -125,6 +126,7 @@ static int query_formats(AVFilterGraph *graph, AVClass *log_ctx)
 
         for(j = 0; j < filter->input_count; j ++) {
             AVFilterLink *link = filter->inputs[j];
+
             if(link && link->in_formats != link->out_formats) {
                 if(!avfilter_merge_formats(link->in_formats,
                                            link->out_formats)) {

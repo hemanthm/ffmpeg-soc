@@ -36,6 +36,7 @@ static void merge_ref(AVFilterFormats *ret, AVFilterFormats *a)
 
     av_free(a->refs);
     av_free(a->formats);
+    av_free(a->aformats);
     av_free(a);
 }
 
@@ -57,12 +58,14 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
         /* merge list of formats */
         ret->formats = av_malloc(sizeof(*ret->formats) * FFMIN(a->format_count,
                                                            b->format_count));
+        ret->type = AVMEDIA_TYPE_VIDEO;         
         CMP_AND_ADD(a->format_count, b->format_count, a->formats, b->formats, ret->formats);
     } else if(a->type == AVMEDIA_TYPE_AUDIO) {
         /* merge list of formats */
         ret->aformats = av_malloc(sizeof(*ret->aformats) * FFMIN(a->format_count,
                                                            b->format_count));
         CMP_AND_ADD(a->format_count, b->format_count, a->aformats, b->aformats, ret->aformats);
+        ret->type = AVMEDIA_TYPE_AUDIO;         
     }
 
     ret->format_count = k;
@@ -168,6 +171,8 @@ AVFilterFormats *avfilter_all_sampleformats(void)
 
     for (sample_fmt = 0; sample_fmt < SAMPLE_FMT_NB; sample_fmt++)
         avfilter_add_sampleformat(&ret, sample_fmt);
+
+    ret->type = AVMEDIA_TYPE_AUDIO;
 
     return ret;
 }

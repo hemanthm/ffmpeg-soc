@@ -1840,6 +1840,10 @@ static int input_query_audio_formats(AVFilterContext *ctx)
 
 static int input_config_audio_props(AVFilterLink *link)
 {
+    FilterPriv *priv  = link->src->priv;
+    AVCodecContext *avctx = priv->is->audio_st->codec;
+
+    link->channel_layout = avctx->channel_layout;
     return 0;
 }
 
@@ -2417,12 +2421,12 @@ static int stream_component_open(VideoState *is, int stream_index)
         AVFilterInOut *outputs = av_malloc(sizeof(AVFilterInOut));
         AVFilterInOut *inputs  = av_malloc(sizeof(AVFilterInOut));
 
-        outputs->name    = av_strdup("ain");
+        outputs->name    = av_strdup("in");
         outputs->filter  = afilt_src;
         outputs->pad_idx = 0;
         outputs->next    = NULL;
 
-        inputs->name    = av_strdup("aout");
+        inputs->name    = av_strdup("out");
         inputs->filter  = afilt_out;
         inputs->pad_idx = 0;
         inputs->next    = NULL;

@@ -171,13 +171,19 @@ static int query_formats(AVFilterContext *ctx)
     return 0;
 }
 
-static void convert_channel_layout(AVFilterLink *link, AVFilterSamplesRef *insamples)
+static void convert_channel_layout(AVFilterLink *link)
 {
     ResampleContext *resample = link->dst->priv;
+    AVFilterLink *outlink = link->dst->outputs[0];
+    AVFilterSamplesRef *outsamples = outlink->out_samples;
+    AVFilterSamplesRef *insamples = resample->temp_samples;
 
     if (resample->reconfig_channel_layout) {
     /* Initialize input/output strides, intermediate buffers etc. */
     }
+
+    if (outsamples && insamples)
+        memcpy(outsamples->data[0], insamples->data[0], outsamples->size);
 
     /* TODO: Convert to required channel layout using functions above and populate output audio buffer */
 }
@@ -185,17 +191,17 @@ static void convert_channel_layout(AVFilterLink *link, AVFilterSamplesRef *insam
 static void convert_sample_format(AVFilterLink *link, AVFilterSamplesRef *insamples)
 {
     ResampleContext *resample = link->dst->priv;
-    AVFilterSamplesRef *out = resample->temp_samples;
+    AVFilterSamplesRef *out = NULL;
 
     int ch = 0;
     /* Here, out_channels is same as input channels, we are only changing sample format */
     int out_channels  = av_channel_layout_num_channels(insamples->channel_layout);
-    int out_sample_sz = av_get_bits_per_sample_fmt(resample->out_sample_fmt);
-    int in_sample_sz  = av_get_bits_per_sample_fmt(insamples->sample_fmt);
+    int out_sample_sz = (av_get_bits_per_sample_fmt(resample->out_sample_fmt) >> 3);
+    int in_sample_sz  = (av_get_bits_per_sample_fmt(insamples->sample_fmt) >> 3);
 
     int planar   = insamples->planar;
     int len      = (planar) ? insamples->samples_nb : insamples->samples_nb*out_channels;
-    int fmt_pair = insamples->sample_fmt*SAMPLE_FMT_NB*resample->out_sample_fmt;
+    int fmt_pair = insamples->sample_fmt*SAMPLE_FMT_NB+resample->out_sample_fmt;
 
     if (resample->reconfig_sample_fmt || !out || !out->size) {
 
@@ -257,25 +263,25 @@ if (fmt_pair == ofmt + SAMPLE_FMT_NB*ifmt) {\
 
     } while (ch < insamples->planar*out_channels);
 
+    resample->temp_samples = out;
     return;
 }
 
-static int config_props(AVFilterLink *outlink)
+static int config_props(AVFilterLink *link)
 {
-    AVFilterContext *ctx = outlink->src;
-    AVFilterLink *inlink = outlink->src->inputs[0];
+    AVFilterContext *ctx = link->dst;
     ResampleContext *resample = ctx->priv;
 
     if (resample->out_channel_layout == -1)
-        resample->out_channel_layout = inlink->channel_layout;
+        resample->out_channel_layout = link->channel_layout;
 
     if (resample->out_sample_fmt == -1)
-        resample->out_sample_fmt = inlink->aformat;
+        resample->out_sample_fmt = link->aformat;
 
     /* Call the channel layout conversion routine to prepare for default conversion. */
 
     resample->reconfig_channel_layout = 1;
-    convert_channel_layout(outlink, NULL);
+    convert_channel_layout(link);
     
     return 0;
 }
@@ -289,7 +295,7 @@ static void filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
 
 #define CALC_BUFFER_SIZE(nsamp, ch, samples) {\
     int n_chan = av_channel_layout_num_channels(ch);\
-    int n_stride = av_get_bits_per_sample_format(samples);\
+    int n_stride = (av_get_bits_per_sample_format(samples) >> 3);\
     size = nsamp*n_chan*n_stride;\
 }
     CALC_BUFFER_SIZE(samplesref->samples_nb, resample->out_channel_layout, resample->out_sample_fmt);
@@ -313,9 +319,9 @@ static void filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
    /* Convert to desired output sample format first and then to desired channel layout */
 
    convert_sample_format(link, samplesref);
-   convert_channel_layout(link, resample->temp_samples);
+   convert_channel_layout(link);
 
-   avfilter_filter_samples(outlink, avfilter_ref_samples(samplesref, ~0));
+   avfilter_filter_samples(outlink, avfilter_ref_samples(outsamples, ~0));
 }
 
 AVFilter avfilter_af_resample = {
@@ -332,10 +338,10 @@ AVFilter avfilter_af_resample = {
     .inputs    = (AVFilterPad[]) {{ .name             = "default",
                                     .type             = AVMEDIA_TYPE_AUDIO,
                                     .filter_samples   = filter_samples,
+                                    .config_props     = config_props,
                                     .min_perms        = AV_PERM_READ, },
                                   { .name = NULL}},
     .outputs   = (AVFilterPad[]) {{ .name             = "default",
-                                    .type             = AVMEDIA_TYPE_AUDIO,
-                                    .config_props     = config_props, },
+                                    .type             = AVMEDIA_TYPE_AUDIO, },
                                   { .name = NULL}},
 };

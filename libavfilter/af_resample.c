@@ -1,5 +1,7 @@
 /*
- * copyright (c) 2007 Bobby Bingham
+ * copyright (c) 2010 S.N. Hemanth Meenakshisundaram <smeenaks@ucsd.edu>
+ * based on code in libavcodec/resample.c by Fabrice Bellard
+ * and libavcodec/audioconvert.c by Michael Neidermayer
  *
  * This file is part of FFmpeg.
  *

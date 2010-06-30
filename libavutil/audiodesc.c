@@ -1,6 +1,7 @@
 /*
  * audio utilities
- * Copyright (c) 2006 Michael Niedermayer <michaelni@gmx.at>
+ * Copyright (c) 2010 S.N. Hemanth Meenakshisundaram <smeenaks@ucsd.edu>
+ * based on audioconvert.c in libavcodec by Michael Niedermayer
  *
  * This file is part of FFmpeg.
  *

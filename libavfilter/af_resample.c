@@ -39,95 +39,96 @@ typedef struct {
     int64_t in_channel_layout;         ///< default incoming channel layout expected
     int64_t out_channel_layout;        ///< output channel layout
     
-     AVFilterSamplesRef *temp_samples; ///< Stores temporary audio data between sample format and channel layout conversions
+    AVFilterSamplesRef *temp_samples;  ///< Stores temporary audio data between sample format and channel layout conversions
 
 } ResampleContext;
 
-static void stereo_to_mono(short *output, short *input, int samples_nb)
-{
-    short *p, *q;
-    int n = samples_nb;
+/* channel_conversion will point to one of the required channel conversion routines below */
+static void (*channel_conversion) (short *output1, short *output2, short *input1, short *input2, int samples_nb, int dummy);
 
-    p = input;
-    q = output;
-    while (n >= 4) {
-        q[0] = (p[0] + p[1]) >> 1;
-        q[1] = (p[2] + p[3]) >> 1;
-        q[2] = (p[4] + p[5]) >> 1;
-        q[3] = (p[6] + p[7]) >> 1;
-        q += 4;
-        p += 8;
-        n -= 4;
+/* All of the routines below may have some dummy arguments that are never used. This is to present a uniform interface */
+
+static void stereo_to_mono(short *output, short *dummy_out, short *input, short *dummy_in, int samples_nb, int dummy)
+{
+    while (samples_nb >= 4) {
+        output[0] = (input[0] + input[1]) >> 1;
+        output[1] = (input[2] + input[3]) >> 1;
+        output[2] = (input[4] + input[5]) >> 1;
+        output[3] = (input[6] + input[7]) >> 1;
+        output += 4;
+        input += 8;
+        samples_nb -= 4;
     }
-    while (n > 0) {
-        q[0] = (p[0] + p[1]) >> 1;
-        q++;
-        p += 2;
-        n--;
+    while (samples_nb > 0) {
+        output[0] = (input[0] + input[1]) >> 1;
+        output++;
+        input += 2;
+        samples_nb--;
     }
 }
 
-static void mono_to_stereo(short *output, short *input, int samples_nb)
+static void mono_to_stereo(short *output, short *dummy_out, short *input, short *dummy_in, int samples_nb, int dummy)
 {
-    short *p, *q;
-    int n = samples_nb;
     int v;
 
-    p = input;
-    q = output;
-    while (n >= 4) {
-        v = p[0]; q[0] = v; q[1] = v;
-        v = p[1]; q[2] = v; q[3] = v;
-        v = p[2]; q[4] = v; q[5] = v;
-        v = p[3]; q[6] = v; q[7] = v;
-        q += 8;
-        p += 4;
-        n -= 4;
+    while (samples_nb >= 4) {
+        v = input[0]; output[0] = v; output[1] = v;
+        v = input[1]; output[2] = v; output[3] = v;
+        v = input[2]; output[4] = v; output[5] = v;
+        v = input[3]; output[6] = v; output[7] = v;
+        output += 8;
+        input += 4;
+        samples_nb -= 4;
     }
-    while (n > 0) {
-        v = p[0]; q[0] = v; q[1] = v;
-        q += 2;
-        p += 1;
-        n--;
+    while (samples_nb > 0) {
+        v = input[0]; output[0] = v; output[1] = v;
+        output += 2;
+        input += 1;
+        samples_nb--;
     }
 }
 
 /* FIXME: should use more abstract 'N' channels system */
-static void stereo_split(short *output1, short *output2, short *input, int n)
+static void stereo_demux(short *output1, short *output2, short *input, short *dummy_in, int samples_nb, int dummy)
 {
     int i;
 
-    for(i=0;i<n;i++) {
+    for (i = 0; i < samples_nb; i++) {
         *output1++ = *input++;
         *output2++ = *input++;
     }
 }
 
-static void stereo_mux(short *output, short *input1, short *input2, int n)
+static void stereo_mux(short *output, short *dummy_out, short *input1, short *input2, int samples_nb, int dummy)
 {
     int i;
 
-    for(i=0;i<n;i++) {
+    for (i = 0; i < samples_nb; i++) {
         *output++ = *input1++;
         *output++ = *input2++;
     }
 }
 
-static void ac3_5p1_mux(short *output, short *input1, short *input2, int n)
+static void ac3_5p1_mux(short *output, short *dummy_out, short *input1, short *input2, int samples_nb, int dummy)
 {
     int i;
-    short l,r;
+    short left, right;
 
-    for(i=0;i<n;i++) {
-      l=*input1++;
-      r=*input2++;
-      *output++ = l;           /* left */
-      *output++ = (l/2)+(r/2); /* center */
-      *output++ = r;           /* right */
-      *output++ = 0;           /* left surround */
-      *output++ = 0;           /* right surroud */
-      *output++ = 0;           /* low freq */
+    for (i = 0; i < samples_nb; i++) {
+      left  = *input1++;
+      right = *input2++;
+      *output++ = left;               /* left */
+      *output++ = (left/2)+(right/2); /* center */
+      *output++ = right;              /* right */
+      *output++ = 0;                  /* left surround */
+      *output++ = 0;                  /* right surroud */
+      *output++ = 0;                  /* low freq */
     }
+}
+
+static void channel_copy(short *output, short *dummy_out, short *input, short *dummy_in, int dummy, int size)
+{
+    memcpy(output, input, size);
 }
 
 static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
@@ -143,6 +144,7 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
      * SAMPLE_FMT_NONE is a valid value for out_sample_fmt and indicates no change in sample format
      * -1 is a valid value for out_channel_layout and indicates no change in channel layout
      */
+
     if (resample->out_sample_fmt >= SAMPLE_FMT_NB || resample->out_sample_fmt < SAMPLE_FMT_NONE) {
         av_log(ctx, AV_LOG_ERROR, "Invalid sample format %d, cannot resample.\n", resample->out_sample_fmt);
         return AVERROR(EINVAL);
@@ -153,6 +155,12 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
         return AVERROR(EINVAL);
     }
 
+    /* Set default values for expected incoming sample format and channel layout */
+    resample->in_channel_layout = CH_LAYOUT_STEREO;
+    resample->in_sample_fmt     = SAMPLE_FMT_S16;
+    /* We do not yet know the channel conversion function to be used */
+    channel_conversion = NULL;
+    
     return 0;
 }
 
@@ -162,7 +170,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     if (resample->temp_samples)
         avfilter_unref_samples(resample->temp_samples);
 }
-
+ 
 static int query_formats(AVFilterContext *ctx)
 {
     enum SampleFormat sample_fmts[] = {
@@ -180,14 +188,42 @@ static void convert_channel_layout(AVFilterLink *link)
     AVFilterSamplesRef *outsamples = outlink->out_samples;
     AVFilterSamplesRef *insamples = resample->temp_samples;
 
-    if (resample->reconfig_channel_layout) {
-    /* Initialize input/output strides, intermediate buffers etc. */
+    if (insamples)
+        resample->in_channel_layout = insamples->channel_layout;
+
+    /* Init stage or input channels changed, so reconfigure conversion function pointer */
+    if (resample->reconfig_channel_layout || !channel_conversion) {
+
+        int planar   = insamples->planar;
+        int64_t in_channel = resample->in_channel_layout;
+        int64_t out_channel = resample->out_channel_layout;
+
+        /*
+         * Pick appropriate channel conversion function based on input-output channel layouts
+         * and on whether buffer is planar or packed. If no suitable conversion function is
+         * available, blindly copy the buffer and hope for the best.
+         *
+         * FIXME: Add error handling if channel conversion is unsupported, more channel conversion
+         * routines and finally the ability to handle various stride lengths (sample formats).
+         *
+         */
+        if ((in_channel == CH_LAYOUT_STEREO) && (out_channel == CH_LAYOUT_MONO))
+            channel_conversion = (planar) ? stereo_mux : stereo_to_mono;
+        else if ((in_channel == CH_LAYOUT_MONO) && (out_channel == CH_LAYOUT_STEREO))
+            channel_conversion = (planar) ? stereo_demux : mono_to_stereo;
+        else if ((in_channel == CH_LAYOUT_STEREO) && (out_channel == CH_LAYOUT_5POINT1))
+            channel_conversion = (planar) ? channel_copy : ac3_5p1_mux;
+        else
+            channel_conversion = channel_copy;
+
     }
 
-    if (outsamples && insamples)
-        memcpy(outsamples->data[0], insamples->data[0], outsamples->size);
+    if (outsamples && insamples) {
+        channel_conversion ((short *)outsamples->data[0], (short *)outsamples->data[1],
+                            (short *)insamples->data[0], (short *)insamples->data[1],
+                            outsamples->samples_nb, outsamples->size);
+    }
 
-    /* TODO: Convert to required channel layout using functions above and populate output audio buffer */
 }
 
 static void convert_sample_format(AVFilterLink *link, AVFilterSamplesRef *insamples)
@@ -280,11 +316,6 @@ static int config_props(AVFilterLink *link)
     if (resample->out_sample_fmt == -1)
         resample->out_sample_fmt = link->aformat;
 
-    /* Call the channel layout conversion routine to prepare for default conversion. */
-
-    resample->reconfig_channel_layout = 1;
-    convert_channel_layout(link);
-    
     return 0;
 }
 
@@ -315,8 +346,8 @@ static void filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
     * to reconfigure the channel and sample format conversions.
     */
 
-   resample->reconfig_sample_fmt = (samplesref->sample_fmt != resample->out_sample_fmt);
-   resample->reconfig_channel_layout = (samplesref->channel_layout != resample->out_channel_layout);
+   resample->reconfig_sample_fmt = (samplesref->sample_fmt != resample->in_sample_fmt);
+   resample->reconfig_channel_layout = (samplesref->channel_layout != resample->in_channel_layout);
 
    /* Convert to desired output sample format first and then to desired channel layout */
 

@@ -38,7 +38,7 @@ typedef struct {
     enum SampleFormat out_sample_fmt;  ///< output sample format
     int64_t in_channel_layout;         ///< default incoming channel layout expected
     int64_t out_channel_layout;        ///< output channel layout
-    
+
     AVFilterSamplesRef *temp_samples;  ///< Stores temporary audio data between sample format and channel layout conversions
 
 } ResampleContext;
@@ -160,7 +160,7 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
     resample->in_sample_fmt     = SAMPLE_FMT_S16;
     /* We do not yet know the channel conversion function to be used */
     channel_conversion = NULL;
-    
+
     return 0;
 }
 
@@ -170,7 +170,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     if (resample->temp_samples)
         avfilter_unref_samples(resample->temp_samples);
 }
- 
+
 static int query_formats(AVFilterContext *ctx)
 {
     enum SampleFormat sample_fmts[] = {

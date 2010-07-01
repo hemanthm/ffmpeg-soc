@@ -647,7 +647,7 @@ struct AVFilterLink
     int64_t channel_layout;     ///< channel layout of current buffer (see avcodec.h)
     int64_t sample_rate;        ///< samples per second
     enum SampleFormat aformat;  ///< sample format (see avcodec.h)
- 
+
     /**
      * Lists of formats supported by the input and output filters respectively.
      * These lists are used for negotiating the format to actually be used,

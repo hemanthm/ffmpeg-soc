@@ -32,6 +32,21 @@
 
 #include "avutil.h"
 
+/**
+ * Descriptor that lists the names of various sample formats and the number of
+ * bits required to represent a sample in each format.
+ *
+ */
+typedef struct SampleFmtInfo {
+    const char *name;
+    int bits;
+} SampleFmtInfo;
+
+/**
+ * The array of all sample format descriptors
+ */
+
+extern const SampleFmtInfo sample_fmt_info[SAMPLE_FMT_NB];
 
 /**
  * Generate string corresponding to the sample format with
@@ -46,24 +61,9 @@
 void av_sample_fmt_string(char *buf, int buf_size, int sample_fmt);
 
 /**
- * @return NULL on error
- */
-const char *av_get_sample_fmt_name(int sample_fmt);
-
-/**
  * @return SAMPLE_FMT_NONE on error
  */
 enum SampleFormat av_get_sample_fmt(const char* name);
-
-/**
- * @return -1 on error
- */
-int av_get_bits_per_sample_fmt(enum SampleFormat sample_fmt);
-
-/**
- * @return NULL on error
- */
-const char *av_get_channel_name(int channel_id);
 
 /**
  * @return description of channel layout
@@ -77,11 +77,11 @@ void av_get_channel_layout_string(char *buf, int buf_size, int nb_channels, int6
  * @param fmt_name Format name, or NULL if unknown
  * @return Channel layout mask
  */
-int64_t av_guess_channel_layout(int nb_channels, const char *fmt_name);
+int64_t av_guess_channel_layout(int nb_channels);
 
 /**
  * @return the number of channels in the channel layout.
  */
-int av_channel_layout_num_channels(int64_t channel_layout);
+int av_get_hamming_weight(int64_t channel_layout);
 
 #endif /* AVUTIL_AUDIODESC_H */

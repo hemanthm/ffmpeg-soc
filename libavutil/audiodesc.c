@@ -31,26 +31,14 @@
 #include "avutil.h"
 #include "audiodesc.h"
 
-typedef struct SampleFmtInfo {
-    const char *name;
-    int bits;
-} SampleFmtInfo;
-
 /** this table gives more information about formats */
-static const SampleFmtInfo sample_fmt_info[SAMPLE_FMT_NB] = {
+const SampleFmtInfo sample_fmt_info[SAMPLE_FMT_NB] = {
     [SAMPLE_FMT_U8]  = { .name = "u8",  .bits = 8 },
     [SAMPLE_FMT_S16] = { .name = "s16", .bits = 16 },
     [SAMPLE_FMT_S32] = { .name = "s32", .bits = 32 },
     [SAMPLE_FMT_FLT] = { .name = "flt", .bits = 32 },
     [SAMPLE_FMT_DBL] = { .name = "dbl", .bits = 64 },
 };
-
-const char *av_get_sample_fmt_name(int sample_fmt)
-{
-    if (sample_fmt < 0 || sample_fmt >= SAMPLE_FMT_NB)
-        return NULL;
-    return sample_fmt_info[sample_fmt].name;
-}
 
 enum SampleFormat av_get_sample_fmt(const char* name)
 {
@@ -73,12 +61,6 @@ void av_sample_fmt_string (char *buf, int buf_size, int sample_fmt)
     }
 }
 
-int av_get_bits_per_sample_fmt(enum SampleFormat sample_fmt) {
-    if (sample_fmt < 0 || sample_fmt >= SAMPLE_FMT_NB)
-        return -1;
-    return sample_fmt_info[sample_fmt].bits;
-}
-
 static const char* const channel_names[]={
     "FL", "FR", "FC", "LFE", "BL",  "BR",  "FLC", "FRC",
     "BC", "SL", "SR", "TC",  "TFL", "TFC", "TFR", "TBL",
@@ -87,27 +69,6 @@ static const char* const channel_names[]={
     [30] = "DR",
 };
 
-static const char *get_channel_name(int channel_id)
-{
-    if (channel_id<0 || channel_id>=FF_ARRAY_ELEMS(channel_names))
-        return NULL;
-    return channel_names[channel_id];
-}
-
-int64_t av_guess_channel_layout(int nb_channels, const char *fmt_name)
-{
-    switch(nb_channels) {
-    case 1: return CH_LAYOUT_MONO;
-    case 2: return CH_LAYOUT_STEREO;
-    case 3: return CH_LAYOUT_SURROUND;
-    case 4: return CH_LAYOUT_QUAD;
-    case 5: return CH_LAYOUT_5POINT0;
-    case 6: return CH_LAYOUT_5POINT1;
-    case 8: return CH_LAYOUT_7POINT1;
-    default: return 0;
-    }
-}
-
 static const struct {
     const char *name;
     int         nb_channels;
@@ -115,18 +76,33 @@ static const struct {
 } channel_layout_map[] = {
     { "mono",        1,  CH_LAYOUT_MONO },
     { "stereo",      2,  CH_LAYOUT_STEREO },
+    { "2.1",         3,  CH_LAYOUT_2_1 },
+    { "surround",    3,  CH_LAYOUT_SURROUND },
     { "4.0",         4,  CH_LAYOUT_4POINT0 },
+    { "2.2",         4,  CH_LAYOUT_2_2 },
     { "quad",        4,  CH_LAYOUT_QUAD },
     { "5.0",         5,  CH_LAYOUT_5POINT0 },
     { "5.0",         5,  CH_LAYOUT_5POINT0_BACK },
     { "5.1",         6,  CH_LAYOUT_5POINT1 },
     { "5.1",         6,  CH_LAYOUT_5POINT1_BACK },
+    { "7.0",         7,  CH_LAYOUT_7POINT0 },
     { "5.1+downmix", 8,  CH_LAYOUT_5POINT1|CH_LAYOUT_STEREO_DOWNMIX, },
     { "7.1",         8,  CH_LAYOUT_7POINT1 },
     { "7.1(wide)",   8,  CH_LAYOUT_7POINT1_WIDE },
     { "7.1+downmix", 10, CH_LAYOUT_7POINT1|CH_LAYOUT_STEREO_DOWNMIX, },
     { 0 }
 };
+
+int64_t av_guess_channel_layout(int nb_channels)
+{
+    int i;
+
+    for (i=0; channel_layout_map[i].name; i++)
+        if (nb_channels == channel_layout_map[i].nb_channels)
+            return channel_layout_map[i].nb_channels;
+
+    return 0;
+}
 
 void av_get_channel_layout_string(char *buf, int buf_size, int nb_channels, int64_t channel_layout)
 {
@@ -145,7 +121,7 @@ void av_get_channel_layout_string(char *buf, int buf_size, int nb_channels, int6
         av_strlcat(buf, " (", buf_size);
         for(i=0,ch=0; i<64; i++) {
             if ((channel_layout & (1L<<i))) {
-                const char *name = get_channel_name(i);
+                const char *name = channel_names[i];
                 if (name) {
                     if (ch>0) av_strlcat(buf, "|", buf_size);
                     av_strlcat(buf, name, buf_size);
@@ -157,10 +133,10 @@ void av_get_channel_layout_string(char *buf, int buf_size, int nb_channels, int6
     }
 }
 
-int av_channel_layout_num_channels(int64_t channel_layout)
+int av_get_hamming_weight(int64_t bstring)
 {
     int count;
-    uint64_t x = channel_layout;
+    uint64_t x = bstring;
     for (count = 0; x; count++)
         x &= x-1; // unset lowest set bit
     return count;

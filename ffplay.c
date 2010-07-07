@@ -25,6 +25,7 @@
 #include <limits.h>
 #include "libavutil/avstring.h"
 #include "libavutil/pixdesc.h"
+#include "libavutil/audiodesc.h"
 #include "libavformat/avformat.h"
 #include "libavdevice/avdevice.h"
 #include "libswscale/swscale.h"
@@ -1816,6 +1817,11 @@ static int input_request_samples(AVFilterLink *link)
     /* FIXME Currently audio streams seem to have no info on planar/packed.
      * Assuming packed here and passing 0 as last attribute to get_samples_ref.
      */
+    av_log(NULL, AV_LOG_ERROR, "Ch Layout incoming: %ld, sample fmt incoming: %d\n", avctx->channel_layout, avctx->sample_fmt);
+    if (!avctx->channel_layout) {
+        avctx->channel_layout = av_guess_channel_layout(avctx->channels);
+    }
+
     samplesref = avfilter_get_samples_ref(link, AV_PERM_WRITE, buf_size,
                                            avctx->channel_layout, avctx->sample_fmt, 0);
     memcpy(samplesref->data[0], priv->is->audio_buf, buf_size);

@@ -230,12 +230,14 @@ static void convert_sample_format(AVFilterLink *link, AVFilterSamplesRef *insamp
 {
     ResampleContext *resample = link->dst->priv;
     AVFilterSamplesRef *out = NULL;
+    const SampleFmtInfo *in_fmt_info = &sample_fmt_info[insamples->sample_fmt];
+    const SampleFmtInfo *out_fmt_info = &sample_fmt_info[resample->out_sample_fmt];
 
     int ch = 0;
     /* Here, out_channels is same as input channels, we are only changing sample format */
-    int out_channels  = av_channel_layout_num_channels(insamples->channel_layout);
-    int out_sample_sz = (av_get_bits_per_sample_fmt(resample->out_sample_fmt) >> 3);
-    int in_sample_sz  = (av_get_bits_per_sample_fmt(insamples->sample_fmt) >> 3);
+    int out_channels  = av_get_hamming_weight(insamples->channel_layout);
+    int out_sample_sz = (out_fmt_info->bits) >> 3;
+    int in_sample_sz  = (in_fmt_info->bits) >> 3;
 
     int planar   = insamples->planar;
     int len      = (planar) ? insamples->samples_nb : insamples->samples_nb*out_channels;
@@ -324,14 +326,15 @@ static void filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
     ResampleContext *resample = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFilterSamplesRef *outsamples;
+    const SampleFmtInfo *reqd_sample_info = &sample_fmt_info[resample->out_sample_fmt];
     int size = 0;
 
-#define CALC_BUFFER_SIZE(nsamp, ch, samples) {\
-    int n_chan = av_channel_layout_num_channels(ch);\
-    int n_stride = (av_get_bits_per_sample_format(samples) >> 3);\
+#define CALC_BUFFER_SIZE(nsamp, ch, sample_info) {\
+    int n_chan = av_get_hamming_weight(ch);\
+    int n_stride = (sample_info->bits) >> 3;\
     size = nsamp*n_chan*n_stride;\
 }
-    CALC_BUFFER_SIZE(samplesref->samples_nb, resample->out_channel_layout, resample->out_sample_fmt);
+    CALC_BUFFER_SIZE(samplesref->samples_nb, resample->out_channel_layout, reqd_sample_info);
     outsamples = avfilter_get_samples_ref(outlink, AV_PERM_WRITE, size,
                                           resample->out_channel_layout, resample->out_sample_fmt, 0);
 

@@ -80,6 +80,7 @@ AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int per
     AVFilterSamplesRef *ref = av_mallocz(sizeof(AVFilterSamplesRef));
     int i, sample_size, num_chans, bufsize, per_channel_size, step_size = 0;
     char *buf;
+    const SampleFmtInfo *sample_info = &sample_fmt_info[sample_fmt];
 
     ref->buffer         = buffer;
     ref->channel_layout = channel_layout;
@@ -93,8 +94,8 @@ AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int per
     buffer->refcount   = 1;
     buffer->free       = avfilter_default_free_audio_buffer;
 
-    sample_size = (av_get_bits_per_sample_fmt(sample_fmt))>>3;
-    num_chans = av_channel_layout_num_channels(channel_layout);
+    sample_size = (sample_info->bits)>>3;
+    num_chans = av_get_hamming_weight(channel_layout);
 
     per_channel_size = size/num_chans;
     ref->samples_nb = per_channel_size/sample_size;

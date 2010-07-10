@@ -41,9 +41,9 @@ static void merge_ref(AVFilterFormats *ret, AVFilterFormats *a)
 }
 
 #define CMP_AND_ADD(acount, bcount, afmt, bfmt, retfmt) { \
-    for(i = 0; i < acount; i++) \
-        for(j = 0; j < bcount; j++) \
-            if(afmt[i] == bfmt[j]) \
+    for (i = 0; i < acount; i++) \
+        for (j = 0; j < bcount; j++) \
+            if (afmt[i] == bfmt[j]) \
                 retfmt[k++] = afmt[i]; \
 }
 
@@ -54,13 +54,13 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
 
     ret = av_mallocz(sizeof(AVFilterFormats));
 
-    if(a->type == AVMEDIA_TYPE_VIDEO) {
+    if (a->type == AVMEDIA_TYPE_VIDEO) {
         /* merge list of formats */
         ret->formats = av_malloc(sizeof(*ret->formats) * FFMIN(a->format_count,
                                                            b->format_count));
         ret->type = AVMEDIA_TYPE_VIDEO;
         CMP_AND_ADD(a->format_count, b->format_count, a->formats, b->formats, ret->formats);
-    } else if(a->type == AVMEDIA_TYPE_AUDIO) {
+    } else if (a->type == AVMEDIA_TYPE_AUDIO) {
         /* merge list of formats */
         ret->aformats = av_malloc(sizeof(*ret->aformats) * FFMIN(a->format_count,
                                                            b->format_count));

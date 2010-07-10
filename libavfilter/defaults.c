@@ -21,7 +21,6 @@
 
 #include "libavcodec/imgconvert.h"
 #include "avfilter.h"
-#include "libavutil/audiodesc.h"
 
 /* TODO: buffer pool.  see comment for avfilter_default_get_video_buffer() */
 static void avfilter_default_free_video_buffer(AVFilterPic *pic)
@@ -80,7 +79,6 @@ AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int per
     AVFilterSamplesRef *ref = av_mallocz(sizeof(AVFilterSamplesRef));
     int i, sample_size, num_chans, bufsize, per_channel_size, step_size = 0;
     char *buf;
-    const SampleFmtInfo *sample_info = &sample_fmt_info[sample_fmt];
 
     ref->buffer         = buffer;
     ref->channel_layout = channel_layout;
@@ -94,8 +92,8 @@ AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int per
     buffer->refcount   = 1;
     buffer->free       = avfilter_default_free_audio_buffer;
 
-    sample_size = (sample_info->bits)>>3;
-    num_chans = av_get_hamming_weight(channel_layout);
+    sample_size = av_get_bits_per_sample_format(sample_fmt) >>3;
+    num_chans = avcodec_channel_layout_num_channels(channel_layout);
 
     per_channel_size = size/num_chans;
     ref->samples_nb = per_channel_size/sample_size;
@@ -116,8 +114,8 @@ AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int per
      * For packed, set the start point of the entire buffer only
      */
     buffer->data[0] = buf;
-    if(planar > 0) {
-        for(i = 1; i < num_chans; i++) {
+    if (planar > 0) {
+        for (i = 1; i < num_chans; i++) {
             step_size += per_channel_size;
             buffer->data[i] = buf + step_size;
         }
@@ -180,21 +178,26 @@ void avfilter_default_end_frame(AVFilterLink *link)
     }
 }
 
+/* FIXME: samplesref is same as link->cur_samples. Need to consider removing the redundant parameter. */
 void avfilter_default_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
 {
     AVFilterLink *out = NULL;
 
-    if(link->dst->output_count)
+    if (link->dst->output_count)
         out = link->dst->outputs[0];
 
-    if(out) {
+    if (out) {
         out->out_samples = avfilter_default_get_samples_ref(link, AV_PERM_WRITE, samplesref->size,
                                                             samplesref->channel_layout,
                                                             samplesref->sample_fmt, samplesref->planar);
         out->out_samples->pts            = samplesref->pts;
         out->out_samples->sample_rate    = samplesref->sample_rate;
         avfilter_filter_samples(out, avfilter_ref_samples(out->out_samples, ~0));
+        avfilter_unref_samples(out->out_samples);
+        out->out_samples = NULL;
     }
+    avfilter_unref_samples(samplesref);
+    link->cur_samples = NULL;
 }
 
 /**

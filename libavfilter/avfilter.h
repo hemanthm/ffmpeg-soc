@@ -38,6 +38,7 @@
 
 #include <stddef.h>
 #include "libavcodec/avcodec.h"
+#include "libavcodec/audioconvert.h"
 
 /**
  * Returns the LIBAVFILTER_VERSION_INT constant.
@@ -156,9 +157,9 @@ typedef struct AVFilterSamplesRef
     int linesize[8];              ///< number of bytes to next sample
     int64_t pts;                  ///< presentation timestamp in units of 1/AV_TIME_BASE
 
-    int64_t channel_layout;       ///< channel layout of current buffer (see avcodec.h)
+    int64_t channel_layout;       ///< channel layout of current buffer
     int64_t sample_rate;          ///< samples per second
-    enum SampleFormat sample_fmt; ///< sample format (see avcodec.h)
+    enum SampleFormat sample_fmt; ///< sample format
 
     int samples_nb;               ///< number of samples in this buffer
     /* Should this go here or in the AVFilterBuffer struct? */
@@ -187,7 +188,7 @@ AVFilterPicRef *avfilter_ref_pic(AVFilterPicRef *ref, int pmask);
 void avfilter_unref_pic(AVFilterPicRef *ref);
 
 /**
- * Adds a new reference to an audio samples buffer.
+ * Add a new reference to an audio samples buffer.
  *
  * @param ref   an existing reference to the buffer
  * @param pmask a bitmask containing the allowable permissions in the new
@@ -422,8 +423,8 @@ struct AVFilterPad
      * Input audio pads only.
      */
     AVFilterSamplesRef *(*get_samples_ref)(AVFilterLink *link, int perms,
-                                            int size, int64_t channel_layout,
-                                            enum SampleFormat sample_fmt, int planar);
+                                           int size, int64_t channel_layout,
+                                           enum SampleFormat sample_fmt, int planar);
 
     /**
      * Callback called after the slices of a frame are completely sent. If
@@ -712,7 +713,7 @@ AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
  *                       be requested
  * @param perms          the required access permissions
  * @param samples_nb     the number of samples in the buffer to allocate
- * @param channel_layout the no. & type of channels per sample in the buffer to allocate
+ * @param channel_layout the number and type of channels per sample in the buffer to allocate
  * @param sample_fmt     the format of each sample in the buffer to allocate
  * @return               A reference to the samples. This must be unreferenced with
  *                       avfilter_unref_samples when you are finished with it.

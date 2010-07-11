@@ -40,9 +40,9 @@ static void merge_ref(AVFilterFormats *ret, AVFilterFormats *a)
 }
 
 #define CMP_AND_ADD(acount, bcount, afmt, bfmt, retfmt) { \
-    for(i = 0; i < acount; i++) \
-        for(j = 0; j < bcount; j++) \
-            if(afmt[i] == bfmt[j]) \
+    for (i = 0; i < acount; i++) \
+        for (j = 0; j < bcount; j++) \
+            if (afmt[i] == bfmt[j]) \
                 retfmt[k++] = afmt[i]; \
 }
 

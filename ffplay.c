@@ -1885,18 +1885,21 @@ static int output_query_audio_formats(AVFilterContext *ctx)
 static int get_filtered_audio_samples(AVFilterContext *ctx, VideoState *is, double *pts)
 {
     AVFilterSamplesRef *samplesref;
+    int ret, size;
 
     if ((ret = avfilter_request_samples(ctx->inputs[0])))
         return ret;
     if (!(samplesref = ctx->inputs[0]->cur_samples))
         return AVERROR(EINVAL);
     ctx->inputs[0]->cur_samples = NULL;
+    size = samplesref->size;
 
     *pts          = samplesref->pts;
 
-    memcpy(is->audio_buf, samplesref->data[0], samplesref->size);
+    memcpy(is->audio_buf, samplesref->data[0], size);
+    avfilter_unref_samples(samplesref);
 
-    return samplesref->size;
+    return size;
 }
 
 static AVFilter output_audio_filter =
@@ -2443,8 +2446,8 @@ static int stream_component_open(VideoState *is, int stream_index)
     } else
         if (avfilter_link(afilt_src, 0, afilt_out, 0) < 0)             goto the_end;
 
-    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_src)) < 0); goto the_end
-    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_out)) < 0); goto the_end
+    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_src)) < 0)  goto the_end;
+    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_out)) < 0)  goto the_end;
 
     if ((ret = avfilter_graph_check_validity(is->agraph, NULL)) < 0)   goto the_end;
     if ((ret = avfilter_graph_config_formats(is->agraph, NULL)) < 0)   goto the_end;

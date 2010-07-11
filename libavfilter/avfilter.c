@@ -387,6 +387,10 @@ void avfilter_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
         dst->rej_perms & samplesref->perms) {
         unsigned int i, num_channels, copy_size;
 
+        av_log(link->dst, AV_LOG_INFO,
+                "Copying audio data in avfilter (have perms %x, need %x, reject %x)\n",
+                samplesref->perms, link_dpad(link).min_perms, link_dpad(link).rej_perms);
+
         link->cur_samples = avfilter_default_get_samples_ref(link, dst->min_perms,
                                                               samplesref->size, samplesref->channel_layout,
                                                               samplesref->sample_fmt, samplesref->planar);

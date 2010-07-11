@@ -34,6 +34,8 @@ void avfilter_register_all(void)
         return;
     initialized = 1;
 
+    REGISTER_FILTER (RESAMPLE,    resample,    af);
+
     REGISTER_FILTER (ASPECT,      aspect,      vf);
     REGISTER_FILTER (CROP,        crop,        vf);
     REGISTER_FILTER (DRAWBOX,     drawbox,     vf);

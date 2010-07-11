@@ -111,13 +111,12 @@ static int query_formats(AVFilterGraph *graph, AVClass *log_ctx)
     int scaler_count = 0;
     char inst_name[30];
 
-    /* ask all the sub-filters for their supported colorspaces */
-    for(i = 0; i < graph->filter_count; i ++) {
-        if(graph->filters[i]->filter->query_formats)
+    /* ask all the sub-filters for their supported colorspaces/sample formats */
+    for (i = 0; i < graph->filter_count; i ++)
+        if (graph->filters[i]->filter->query_formats)
             graph->filters[i]->filter->query_formats(graph->filters[i]);
         else
             avfilter_default_query_formats(graph->filters[i]);
-    }
 
     /* go through and merge as many format lists as possible */
     for(i = 0; i < graph->filter_count; i ++) {
@@ -170,7 +169,9 @@ static void pick_format(AVFilterLink *link)
         return;
 
     link->in_formats->format_count = 1;
-    link->format = link->in_formats->formats[0];
+
+    if      (link->type == AVMEDIA_TYPE_VIDEO) link->format = link->in_formats->formats[0];
+    else if (link->type == AVMEDIA_TYPE_AUDIO) link->aformat = link->in_formats->aformats[0];
 
     avfilter_formats_unref(&link->in_formats);
     avfilter_formats_unref(&link->out_formats);

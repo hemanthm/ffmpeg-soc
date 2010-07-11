@@ -130,11 +130,11 @@ typedef struct AVFilterPicRef
     AVFilterPic *pic;           ///< the picture that this is a reference to
     uint8_t *data[4];           ///< picture data for each plane
     int linesize[4];            ///< number of bytes per line
-    int64_t pts;                ///< presentation timestamp in units of 1/AV_TIME_BASE
-    int64_t pos;                ///< byte position in stream, -1 if unknown
-
     int w;                      ///< image width
     int h;                      ///< image height
+
+    int64_t pts;                ///< presentation timestamp in units of 1/AV_TIME_BASE
+    int64_t pos;                ///< byte position in stream, -1 if unknown
 
     AVRational pixel_aspect;    ///< pixel aspect ratio
 
@@ -375,7 +375,7 @@ struct AVFilterPad
     const char *name;
 
     /**
-     * AVFilterPad type. Audio support still in progress.
+     * AVFilterPad type.
      */
     enum AVMediaType type;
 
@@ -634,7 +634,7 @@ struct AVFilterLink
     } init_state;
 
     /**
-     * AVFilterPad type. Audio support still in progress.
+     * AVFilterPad type.
      */
     enum AVMediaType type;
 

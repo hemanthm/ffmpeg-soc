@@ -4,8 +4,6 @@ NAME = avutil
 
 HEADERS = adler32.h                                                     \
           attributes.h                                                  \
-          audiodesc.h                                                   \
-          audiofmt.h                                                    \
           avstring.h                                                    \
           avutil.h                                                      \
           base64.h                                                      \
@@ -30,7 +28,6 @@ BUILT_HEADERS = avconfig.h
 
 OBJS = adler32.o                                                        \
        aes.o                                                            \
-       audiodesc.o                                                      \
        avstring.o                                                       \
        base64.o                                                         \
        crc.o                                                            \

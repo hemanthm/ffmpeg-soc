@@ -119,9 +119,9 @@ AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int per
             step_size += per_channel_size;
             buffer->data[i] = buf + step_size;
         }
-    } else {
+    } else
         memset(&buffer->data[1], (long)buf, (num_chans-1)*sizeof(buffer->data[0]));
-    }
+
     memset(&buffer->data[num_chans], 0, (8-num_chans)*sizeof(buffer->data[0]));
 
     memcpy(ref->data,     buffer->data,     sizeof(buffer->data));

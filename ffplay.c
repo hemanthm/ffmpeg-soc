@@ -25,7 +25,6 @@
 #include <limits.h>
 #include "libavutil/avstring.h"
 #include "libavutil/pixdesc.h"
-#include "libavutil/audiodesc.h"
 #include "libavformat/avformat.h"
 #include "libavdevice/avdevice.h"
 #include "libswscale/swscale.h"
@@ -1812,13 +1811,13 @@ static int input_request_samples(AVFilterLink *link)
     buf_size = audio_decode_frame(priv->is, &pts);
     avctx = priv->is->audio_st->codec;
     if (buf_size <= 0)
-        return -1;
+        return AVERROR(EINVAL);
 
     /* FIXME Currently audio streams seem to have no info on planar/packed.
      * Assuming packed here and passing 0 as last attribute to get_samples_ref.
      */
     if (!avctx->channel_layout) {
-        avctx->channel_layout = av_guess_channel_layout(avctx->channels);
+        avctx->channel_layout = avcodec_guess_channel_layout(avctx->channels, 0, NULL);
     }
 
     samplesref = avfilter_get_samples_ref(link, AV_PERM_WRITE, buf_size,
@@ -1887,16 +1886,15 @@ static int get_filtered_audio_samples(AVFilterContext *ctx, VideoState *is, doub
 {
     AVFilterSamplesRef *samplesref;
 
-    if (avfilter_request_samples(ctx->inputs[0]))
-        return -1;
+    if ((ret = avfilter_request_samples(ctx->inputs[0])))
+        return ret;
     if (!(samplesref = ctx->inputs[0]->cur_samples))
-        return -1;
+        return AVERROR(EINVAL);
     ctx->inputs[0]->cur_samples = NULL;
 
     *pts          = samplesref->pts;
 
-    memcpy(is->audio_buf1, samplesref->data[0], samplesref->size);
-    is->audio_buf = is->audio_buf1;
+    memcpy(is->audio_buf, samplesref->data[0], samplesref->size);
 
     return samplesref->size;
 }
@@ -2343,6 +2341,7 @@ static int stream_component_open(VideoState *is, int stream_index)
     SDL_AudioSpec wanted_spec, spec;
 #if CONFIG_AVFILTER
     AVFilterContext *afilt_src = NULL, *afilt_out = NULL;
+    int ret = AVERROR(EINVAL);
 #endif
 
     if (stream_index < 0 || stream_index >= ic->nb_streams)
@@ -2415,11 +2414,11 @@ static int stream_component_open(VideoState *is, int stream_index)
 
 #if CONFIG_AVFILTER
     is->agraph = av_mallocz(sizeof(AVFilterGraph));
-    if (!(afilt_src = avfilter_open(&input_audio_filter,  "asrc")))   goto the_end;
-    if (!(afilt_out = avfilter_open(&output_audio_filter, "aout")))   goto the_end;
+    if (!(afilt_src = avfilter_open(&input_audio_filter,  "asrc")))    goto the_end;
+    if (!(afilt_out = avfilter_open(&output_audio_filter, "aout")))    goto the_end;
 
-    if (avfilter_init_filter(afilt_src, NULL, is))             goto the_end;
-    if (avfilter_init_filter(afilt_out, NULL, NULL))           goto the_end;
+    if ((ret = avfilter_init_filter(afilt_src, NULL, is)) < 0)         goto the_end;
+    if ((ret = avfilter_init_filter(afilt_out, NULL, NULL)) < 0)       goto the_end;
 
 
     if (afilters) {
@@ -2436,18 +2435,20 @@ static int stream_component_open(VideoState *is, int stream_index)
         inputs->pad_idx = 0;
         inputs->next    = NULL;
 
-        if (avfilter_graph_parse(is->agraph, afilters, inputs, outputs, NULL) < 0)
+        if ((ret = avfilter_graph_parse(is->agraph, afilters, inputs, outputs, NULL)) < 0)
             goto the_end;
-        av_freep(&afilters);
-    } else {
-        if (avfilter_link(afilt_src, 0, afilt_out, 0) < 0)          goto the_end;
-    }
-    avfilter_graph_add_filter(is->agraph, afilt_src);
-    avfilter_graph_add_filter(is->agraph, afilt_out);
 
-    if (avfilter_graph_check_validity(is->agraph, NULL))           goto the_end;
-    if (avfilter_graph_config_formats(is->agraph, NULL))           goto the_end;
-    if (avfilter_graph_config_links(is->agraph, NULL))             goto the_end;
+        av_freep(&afilters);
+
+    } else
+        if (avfilter_link(afilt_src, 0, afilt_out, 0) < 0)             goto the_end;
+
+    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_src)) < 0); goto the_end
+    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_out)) < 0); goto the_end
+
+    if ((ret = avfilter_graph_check_validity(is->agraph, NULL)) < 0)   goto the_end;
+    if ((ret = avfilter_graph_config_formats(is->agraph, NULL)) < 0)   goto the_end;
+    if ((ret = avfilter_graph_config_links(is->agraph, NULL)) < 0)     goto the_end;
 
     is->out_audio_filter = afilt_out;
 #endif
@@ -2479,7 +2480,7 @@ static int stream_component_open(VideoState *is, int stream_index)
 the_end:
     avfilter_graph_destroy(is->agraph);
     av_freep(&(is->agraph));
-    return -1;
+    return ret;
 #endif
 }
 

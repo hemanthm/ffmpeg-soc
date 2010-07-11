@@ -1817,7 +1817,6 @@ static int input_request_samples(AVFilterLink *link)
     /* FIXME Currently audio streams seem to have no info on planar/packed.
      * Assuming packed here and passing 0 as last attribute to get_samples_ref.
      */
-    av_log(NULL, AV_LOG_ERROR, "Ch Layout incoming: %ld, sample fmt incoming: %d\n", avctx->channel_layout, avctx->sample_fmt);
     if (!avctx->channel_layout) {
         avctx->channel_layout = av_guess_channel_layout(avctx->channels);
     }

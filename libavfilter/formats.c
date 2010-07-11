@@ -39,6 +39,13 @@ static void merge_ref(AVFilterFormats *ret, AVFilterFormats *a)
     av_free(a);
 }
 
+#define CMP_AND_ADD(acount, bcount, afmt, bfmt, retfmt) { \
+    for(i = 0; i < acount; i++) \
+        for(j = 0; j < bcount; j++) \
+            if(afmt[i] == bfmt[j]) \
+                retfmt[k++] = afmt[i]; \
+}
+
 AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
 {
     AVFilterFormats *ret;
@@ -49,10 +56,7 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
     /* merge list of formats */
     ret->formats = av_malloc(sizeof(*ret->formats) * FFMIN(a->format_count,
                                                            b->format_count));
-    for(i = 0; i < a->format_count; i ++)
-        for(j = 0; j < b->format_count; j ++)
-            if(a->formats[i] == b->formats[j])
-                ret->formats[k++] = a->formats[i];
+    CMP_AND_ADD(a->format_count, b->format_count, a->formats, b->formats, ret->formats);
 
     ret->format_count = k;
     /* check that there was at least one common format */

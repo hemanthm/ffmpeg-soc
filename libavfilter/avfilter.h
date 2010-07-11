@@ -96,6 +96,11 @@ typedef struct AVFilterPic
  *
  * TODO: add anything necessary for frame reordering
  */
+#define AV_PERM_READ     0x01   ///< can read from the buffer
+#define AV_PERM_WRITE    0x02   ///< can write to the buffer
+#define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
+#define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
+#define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 typedef struct AVFilterPicRef
 {
     AVFilterPic *pic;           ///< the picture that this is a reference to
@@ -110,11 +115,6 @@ typedef struct AVFilterPicRef
     AVRational pixel_aspect;    ///< pixel aspect ratio
 
     int perms;                  ///< permissions
-#define AV_PERM_READ     0x01   ///< can read from the buffer
-#define AV_PERM_WRITE    0x02   ///< can write to the buffer
-#define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
-#define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
-#define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 
     int interlaced;             ///< is frame interlaced
     int top_field_first;

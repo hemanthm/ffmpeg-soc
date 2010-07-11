@@ -15,8 +15,6 @@ OBJS = allfilters.o                                                     \
        graphparser.o                                                    \
        parseutils.o                                                     \
 
-OBJS-$(CONFIG_RESAMPLE_FILTER)               += af_resample.o
-
 OBJS-$(CONFIG_ASPECT_FILTER)                 += vf_aspect.o
 OBJS-$(CONFIG_CROP_FILTER)                   += vf_crop.o
 OBJS-$(CONFIG_DRAWBOX_FILTER)                += vf_drawbox.o

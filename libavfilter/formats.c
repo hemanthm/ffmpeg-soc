@@ -70,7 +70,7 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
     return ret;
 }
 
-AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts)
+AVFilterFormats *avfilter_make_format_list(const int *pix_fmts)
 {
     AVFilterFormats *formats;
     int count;

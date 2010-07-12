@@ -102,7 +102,7 @@ typedef struct AVFilterBuffer
 #define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 typedef struct AVFilterPicRef
 {
-    AVFilterBuffer *pic;           ///< the picture that this is a reference to
+    AVFilterBuffer *pic;        ///< the picture that this is a reference to
     uint8_t *data[4];           ///< picture data for each plane
     int linesize[4];            ///< number of bytes per line
     int w;                      ///< image width

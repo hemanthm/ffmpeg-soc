@@ -23,7 +23,7 @@
 #include "avfilter.h"
 
 /* TODO: buffer pool.  see comment for avfilter_default_get_video_buffer() */
-static void avfilter_default_free_video_buffer(AVFilterPic *pic)
+static void avfilter_default_free_video_buffer(AVFilterBuffer *pic)
 {
     av_free(pic->data[0]);
     av_free(pic);
@@ -34,14 +34,14 @@ static void avfilter_default_free_video_buffer(AVFilterPic *pic)
  * alloc & free cycle currently implemented. */
 AVFilterPicRef *avfilter_default_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
 {
-    AVFilterPic *pic = av_mallocz(sizeof(AVFilterPic));
+    AVFilterBuffer *pic = av_mallocz(sizeof(AVFilterBuffer));
     AVFilterPicRef *ref = av_mallocz(sizeof(AVFilterPicRef));
     int i, tempsize;
     char *buf;
 
     ref->pic   = pic;
-    ref->w     = pic->w = w;
-    ref->h     = pic->h = h;
+    ref->w     = w;
+    ref->h     = h;
 
     /* make sure the buffer gets read permission or it's useless for output */
     ref->perms = perms | AV_PERM_READ;

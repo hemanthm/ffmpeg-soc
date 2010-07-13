@@ -200,17 +200,21 @@ static void dprintf_link(void *ctx, AVFilterLink *link, int end)
 
 #define DPRINTF_START(ctx, func) dprintf(NULL, "%-16s: ", #func)
 
+#define DEFINE_AVFILTER_GET_BUFFER(funcname, ...) {\
+    if(link_dpad(link).get_##funcname)\
+        ret = link_dpad(link).get_##funcname(link, perms, __VA_ARGS__);\
+\
+    if(!ret)\
+        ret = avfilter_default_get_##funcname(link, perms, __VA_ARGS__);\
+}
+
 AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
 {
     AVFilterPicRef *ret = NULL;
 
     DPRINTF_START(NULL, get_video_buffer); dprintf_link(NULL, link, 0); dprintf(NULL, " perms:%d w:%d h:%d\n", perms, w, h);
 
-    if(link_dpad(link).get_video_buffer)
-        ret = link_dpad(link).get_video_buffer(link, perms, w, h);
-
-    if(!ret)
-        ret = avfilter_default_get_video_buffer(link, perms, w, h);
+    DEFINE_AVFILTER_GET_BUFFER(video_buffer, w, h);
 
     DPRINTF_START(NULL, get_video_buffer); dprintf_link(NULL, link, 0); dprintf(NULL, " returning "); dprintf_picref(NULL, ret, 1);
 
@@ -222,11 +226,7 @@ AVFilterSamplesRef *avfilter_get_samples_ref(AVFilterLink *link, int perms, int 
 {
     AVFilterSamplesRef *ret = NULL;
 
-    if (link_dpad(link).get_samples_ref)
-        ret = link_dpad(link).get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
-
-    if (!ret)
-        ret = avfilter_default_get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
+    DEFINE_AVFILTER_GET_BUFFER(samples_ref, size, channel_layout, sample_fmt, planar);
 
     return ret;
 }

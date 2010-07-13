@@ -49,9 +49,9 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
     /* merge list of formats */
     ret->formats = av_malloc(sizeof(*ret->formats) * FFMIN(a->format_count,
                                                            b->format_count));
-    for(i = 0; i < a->format_count; i ++)
-        for(j = 0; j < b->format_count; j ++)
-            if(a->formats[i] == b->formats[j])
+    for (i = 0; i < a->format_count; i++)
+        for (j = 0; j < b->format_count; j++)
+            if (a->formats[i] == b->formats[j])
                 ret->formats[k++] = a->formats[i];
 
     ret->format_count = k;
@@ -70,18 +70,22 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b)
     return ret;
 }
 
-AVFilterFormats *avfilter_make_format_list(const int *pix_fmts)
+AVFilterFormats *avfilter_make_format_list(const int *fmts)
 {
     AVFilterFormats *formats;
     int count;
 
-    for (count = 0; pix_fmts[count] != PIX_FMT_NONE; count++)
+    /**
+     * FIXME: Both PIX_FMT_NONE and SAMPLE_FMT_NONE now have value -1 so this works.
+     * Need to handle the case where this may not be true.
+     */
+    for (count = 0; fmts[count] != -1; count++)
         ;
 
     formats               = av_mallocz(sizeof(AVFilterFormats));
     formats->formats      = av_malloc(sizeof(*formats->formats) * count);
     formats->format_count = count;
-    memcpy(formats->formats, pix_fmts, sizeof(*formats->formats) * count);
+    memcpy(formats->formats, fmts, sizeof(*formats->formats) * count);
 
     return formats;
 }
@@ -111,6 +115,34 @@ AVFilterFormats *avfilter_all_colorspaces(void)
     for (pix_fmt = 0; pix_fmt < PIX_FMT_NB; pix_fmt++)
         if (!(av_pix_fmt_descriptors[pix_fmt].flags & PIX_FMT_HWACCEL))
             avfilter_add_colorspace(&ret, pix_fmt);
+
+    return ret;
+}
+
+int avfilter_add_sampleformat(AVFilterFormats **avff, enum SampleFormat sample_fmt)
+{
+    enum SampleFormat *sample_fmts;
+
+    if (!(*avff) && !(*avff = av_mallocz(sizeof(AVFilterFormats))))
+        return AVERROR(ENOMEM);
+
+    sample_fmts = av_realloc((*avff)->formats,
+                          sizeof((*avff)->formats) * ((*avff)->format_count+1));
+    if (!sample_fmts)
+        return AVERROR(ENOMEM);
+
+    (*avff)->formats = sample_fmts;
+    (*avff)->formats[(*avff)->format_count++] = sample_fmt;
+    return 0;
+}
+
+AVFilterFormats *avfilter_all_sampleformats(void)
+{
+    AVFilterFormats *ret = NULL;
+    enum SampleFormat sample_fmt;
+
+    for (sample_fmt = 0; sample_fmt < SAMPLE_FMT_NB; sample_fmt++)
+        avfilter_add_sampleformat(&ret, sample_fmt);
 
     return ret;
 }

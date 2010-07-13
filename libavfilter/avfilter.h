@@ -70,8 +70,8 @@ typedef struct AVFilterPad     AVFilterPad;
  */
 typedef struct AVFilterBuffer
 {
-    uint8_t *data[4];           ///< picture data for each plane
-    int linesize[4];            ///< number of bytes per line
+    uint8_t *data[8];           ///< picture data for each plane
+    int linesize[8];            ///< number of bytes per line
     int format;                 ///< colorspace
 
     unsigned refcount;          ///< number of references to this image

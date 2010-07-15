@@ -29,19 +29,21 @@
 
 typedef struct {
 
-    short reconfig_channel_layout;     ///< set when channel layout of incoming buffer changes
-    short reconfig_sample_fmt;         ///< set when sample format of incoming buffer changes
+    short reconfig_channel_layout;        ///< set when channel layout of incoming buffer changes
+    short reconfig_sample_fmt;            ///< set when sample format of incoming buffer changes
 
-    enum SampleFormat in_sample_fmt;   ///< default incoming sample format expected
-    enum SampleFormat out_sample_fmt;  ///< output sample format
-    int64_t in_channel_layout;         ///< default incoming channel layout expected
-    int64_t out_channel_layout;        ///< output channel layout
+    enum SampleFormat in_sample_fmt;      ///< default incoming sample format expected
+    enum SampleFormat out_sample_fmt;     ///< output sample format
+    int64_t in_channel_layout;            ///< default incoming channel layout expected
+    int64_t out_channel_layout;           ///< output channel layout
 
-    int in_samples_nb;                 ///< stores number of samples in previous incoming buffer
-    AVFilterSamplesRef *prev_samples;  ///< stores previous incoming buffer
-    AVFilterSamplesRef *s16_samples;   ///< stores temporary audio data in s16 sample format for channel layout conversions
-    AVFilterSamplesRef *temp_samples;  ///< stores temporary audio data in s16 sample format after channel layout conversions
-    AVFilterSamplesRef *out_samples;   ///< stores audio data after required sample format and channel layout conversions
+    int in_samples_nb;                    ///< stores number of samples in previous incoming buffer
+    AVFilterSamplesRef *s16_samples;      ///< stores temporary audio data in s16 sample format for channel layout conversions
+    AVFilterSamplesRef *s16_samples_ptr;  ///< duplicate pointer to audio data in s16 sample format
+    AVFilterSamplesRef *temp_samples;     ///< stores temporary audio data in s16 sample format after channel layout conversions
+    AVFilterSamplesRef *temp_samples_ptr; ///< duplicate pointer to audio data after channel layout conversions
+    AVFilterSamplesRef *out_samples;      ///< stores audio data after required sample format and channel layout conversions
+    AVFilterSamplesRef *out_samples_ptr;  ///< duplicate pointer to audio data after required conversions
 
     void (*channel_conversion) (uint8_t *out[], uint8_t *in[], int , int); ///< channel conversion routine that will
                                                                        ///< point to one of the routines below
@@ -194,17 +196,12 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 static av_cold void uninit(AVFilterContext *ctx)
 {
     ResampleContext *resample = ctx->priv;
-    if (resample->s16_samples && resample->s16_samples != resample->prev_samples)
+    if (resample->s16_samples)
         avfilter_unref_samples(resample->s16_samples);
-    if (resample->temp_samples && (resample->temp_samples != resample->prev_samples) &&
-        (resample->temp_samples != resample->s16_samples))
+    if (resample->temp_samples)
         avfilter_unref_samples(resample->temp_samples);
-    if (resample->out_samples && (resample->out_samples != resample->prev_samples) &&
-        (resample->out_samples != resample->s16_samples) &&
-        (resample->out_samples != resample->temp_samples))
+    if (resample->out_samples)
         avfilter_unref_samples(resample->out_samples);
-    if (resample->prev_samples)
-        avfilter_unref_samples(resample->prev_samples);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -271,7 +268,8 @@ static void convert_channel_layout(AVFilterLink *link)
         resample->channel_conversion(outsamples->data, insamples->data,
                                      outsamples->samples_nb, num_ip_channels);
     }
-    resample->temp_samples = outsamples;
+    resample->temp_samples     = outsamples;
+    resample->temp_samples_ptr = outsamples;
 }
 
 static void convert_sample_fmt(AVFilterLink *link, AVFilterSamplesRef *insamples, AVFilterSamplesRef *out,
@@ -359,7 +357,8 @@ static void convert_sample_format_wrapper(AVFilterLink *link)
     out->sample_rate  = insamples->sample_rate;
 
     convert_sample_fmt(link, insamples, out, len, out_sample_size, out_channels, fmt_pair, planar);
-    resample->out_samples = out;
+    resample->out_samples     = out;
+    resample->out_samples_ptr = out;
 
 }
 
@@ -391,8 +390,8 @@ static void convert_s16_format_wrapper(AVFilterLink *link, AVFilterSamplesRef *i
     out->sample_rate  = insamples->sample_rate;
 
     convert_sample_fmt(link, insamples, out, len, 2, out_channels, fmt_pair, planar);
-    resample->s16_samples = out;
-
+    resample->s16_samples     = out;
+    resample->s16_samples_ptr = out;
 }
 
 static int config_props(AVFilterLink *link)
@@ -430,24 +429,22 @@ static void filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
     /* Convert to s16 sample format first, then to desired channel layout  and finally to desired sample format */
 
     if (samplesref->sample_fmt == SAMPLE_FMT_S16)
-        resample->s16_samples = samplesref;
+        resample->s16_samples_ptr = samplesref;
     else
         convert_s16_format_wrapper(link, samplesref);
 
     if (samplesref->channel_layout == resample->out_channel_layout)
-        resample->temp_samples = resample->s16_samples;
+        resample->temp_samples_ptr = resample->s16_samples;
     else
         convert_channel_layout(link);
 
     if (resample->out_sample_fmt == SAMPLE_FMT_S16)
-        resample->out_samples = resample->temp_samples;
+        resample->out_samples_ptr = resample->temp_samples;
     else
         convert_sample_format_wrapper(link);
 
-    avfilter_filter_samples(outlink, avfilter_ref_samples(resample->out_samples, ~0));
-    if (resample->prev_samples)
-        avfilter_unref_samples(resample->prev_samples);
-    resample->prev_samples = samplesref;
+    avfilter_filter_samples(outlink, avfilter_ref_samples(resample->out_samples_ptr, ~0));
+    avfilter_unref_samples(samplesref);
 }
 
 AVFilter avfilter_af_resample = {

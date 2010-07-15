@@ -44,27 +44,37 @@ const char *avfilter_license(void)
 #define link_dpad(link)     link->dst-> input_pads[link->dstpad]
 #define link_spad(link)     link->src->output_pads[link->srcpad]
 
-#define DEFINE_AVFILTER_REF(refname, refstruct) refstruct *avfilter_ref_##refname(refstruct *ref, int pmask) \
-{ \
-    refstruct *ret = av_malloc(sizeof(refstruct)); \
-    *ret = *ref; \
-    ret->perms &= pmask; \
-    ret->refname->refcount++; \
-    return ret; \
+AVFilterPicRef *avfilter_ref_pic(AVFilterPicRef *ref, int pmask)
+{
+    AVFilterPicRef *ret = av_malloc(sizeof(AVFilterPicRef));
+    *ret = *ref;
+    ret->perms &= pmask;
+    ret->pic->refcount++;
+    return ret;
 }
 
-DEFINE_AVFILTER_REF(pic    , AVFilterPicRef    );
-DEFINE_AVFILTER_REF(samples, AVFilterSamplesRef);
-
-#define DEFINE_AVFILTER_UNREF(refname, refstruct) void avfilter_unref_##refname(refstruct *ref) \
-{ \
-    if(!(--ref->refname->refcount)) \
-        ref->refname->free(ref->refname); \
-    av_free(ref); \
+AVFilterSamplesRef *avfilter_ref_samples(AVFilterSamplesRef *ref, int pmask)
+{
+    AVFilterSamplesRef *ret = av_malloc(sizeof(AVFilterSamplesRef));
+    *ret = *ref;
+    ret->perms &= pmask;
+    ret->samples->refcount++;
+    return ret;
 }
 
-DEFINE_AVFILTER_UNREF(pic    , AVFilterPicRef    );
-DEFINE_AVFILTER_UNREF(samples, AVFilterSamplesRef);
+void avfilter_unref_pic(AVFilterPicRef *ref)
+{
+    if(!(--ref->pic->refcount))
+        ref->pic->free(ref->pic);
+    av_free(ref);
+}
+
+void avfilter_unref_samples(AVFilterSamplesRef *ref)
+{
+    if(!(--ref->samples->refcount))
+        ref->samples->free(ref->samples);
+    av_free(ref);
+}
 
 void avfilter_insert_pad(unsigned idx, unsigned *count, size_t padidx_off,
                          AVFilterPad **pads, AVFilterLink ***links,
@@ -200,21 +210,17 @@ static void dprintf_link(void *ctx, AVFilterLink *link, int end)
 
 #define DPRINTF_START(ctx, func) dprintf(NULL, "%-16s: ", #func)
 
-#define DEFINE_AVFILTER_GET_BUFFER(funcname, ...) {\
-    if(link_dpad(link).get_##funcname)\
-        ret = link_dpad(link).get_##funcname(link, perms, __VA_ARGS__);\
-\
-    if(!ret)\
-        ret = avfilter_default_get_##funcname(link, perms, __VA_ARGS__);\
-}
-
 AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
 {
     AVFilterPicRef *ret = NULL;
 
     DPRINTF_START(NULL, get_video_buffer); dprintf_link(NULL, link, 0); dprintf(NULL, " perms:%d w:%d h:%d\n", perms, w, h);
 
-    DEFINE_AVFILTER_GET_BUFFER(video_buffer, w, h);
+    if(link_dpad(link).get_video_buffer)
+        ret = link_dpad(link).get_video_buffer(link, perms, w, h);
+
+    if(!ret)
+        ret = avfilter_default_get_video_buffer(link, perms, w, h);
 
     DPRINTF_START(NULL, get_video_buffer); dprintf_link(NULL, link, 0); dprintf(NULL, " returning "); dprintf_picref(NULL, ret, 1);
 
@@ -226,7 +232,11 @@ AVFilterSamplesRef *avfilter_get_samples_ref(AVFilterLink *link, int perms, int 
 {
     AVFilterSamplesRef *ret = NULL;
 
-    DEFINE_AVFILTER_GET_BUFFER(samples_ref, size, channel_layout, sample_fmt, planar);
+    if(link_dpad(link).get_samples_ref)
+        ret = link_dpad(link).get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
+
+    if(!ret)
+        ret = avfilter_default_get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
 
     return ret;
 }

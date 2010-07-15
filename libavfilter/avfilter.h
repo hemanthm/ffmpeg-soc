@@ -72,7 +72,7 @@ typedef struct AVFilterBuffer
 {
     uint8_t *data[8];           ///< picture data for each plane
     int linesize[8];            ///< number of bytes per line
-    int format;                 ///< colorspace
+    int format;                 ///< colorspace or sample format
 
     unsigned refcount;          ///< number of references to this image
 
@@ -226,7 +226,7 @@ typedef struct AVFilterFormats AVFilterFormats;
 struct AVFilterFormats
 {
     unsigned format_count;      ///< number of formats
-    int *formats;               ///< list of pixel formats
+    int *formats;               ///< list of pixel or sample formats
 
     unsigned refcount;          ///< number of references to this list
     AVFilterFormats ***refs;    ///< references to this list

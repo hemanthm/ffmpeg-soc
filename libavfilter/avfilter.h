@@ -121,7 +121,7 @@ typedef struct AVFilterPicRef
 } AVFilterPicRef;
 
 /**
- * Adds a new reference to a picture.
+ * Add a new reference to a picture.
  * @param ref   an existing reference to the picture
  * @param pmask a bitmask containing the allowable permissions in the new
  *              reference
@@ -196,7 +196,7 @@ struct AVFilterFormats
 AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts);
 
 /**
- * Adds pix_fmt to the list of pixel formats contained in *avff.
+ * Adds pix_fmts to the list of pixel formats contained in *avff.
  * If *avff is NULL the function allocates the filter formats struct
  * and puts its pointer in *avff.
  *
@@ -211,7 +211,7 @@ int avfilter_add_colorspace(AVFilterFormats **avff, enum PixelFormat pix_fmt);
 AVFilterFormats *avfilter_all_colorspaces(void);
 
 /**
- * Returns a format list which contains the intersection of the formats of
+ * Return a format list which contains the intersection of the formats of
  * a and b. Also, all the references of a, all the references of b, and
  * a and b themselves will be deallocated.
  *
@@ -555,7 +555,7 @@ AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
                                           int w, int h);
 
 /**
- * Requests an input frame from the filter at the other end of the link.
+ * Request an input frame from the filter at the other end of the link.
  * @param link the input link
  * @return     zero on success
  */
@@ -602,7 +602,7 @@ void avfilter_end_frame(AVFilterLink *link);
  */
 void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 
-/** Initializes the filter system. Registers all builtin filters. */
+/** Initialize the filter system. Registers all builtin filters. */
 void avfilter_register_all(void);
 
 /** Uninitializes the filter system. Unregisters all filters. */

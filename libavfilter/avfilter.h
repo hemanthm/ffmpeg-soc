@@ -85,7 +85,6 @@ typedef struct AVFilterBuffer
      */
     void (*free)(struct AVFilterBuffer *pic);
 
-    int w, h;                  ///< width and height of the allocated buffer
 } AVFilterBuffer;
 
 /**

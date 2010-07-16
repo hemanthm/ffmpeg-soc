@@ -38,6 +38,7 @@
 
 #include <stddef.h>
 #include "libavcodec/avcodec.h"
+#include "libavcodec/audioconvert.h"
 
 /**
  * Return the LIBAVFILTER_VERSION_INT constant.
@@ -69,9 +70,9 @@ typedef struct AVFilterPad     AVFilterPad;
  */
 typedef struct AVFilterBuffer
 {
-    uint8_t *data[4];           ///< picture data for each plane
-    int linesize[4];            ///< number of bytes per line
-    int format;                 ///< colorspace
+    uint8_t *data[8];           ///< picture data for each plane
+    int linesize[8];            ///< number of bytes per line
+    int format;                 ///< colorspace or sample format
 
     unsigned refcount;          ///< number of references to this image
 
@@ -120,6 +121,32 @@ typedef struct AVFilterPicRef
 } AVFilterPicRef;
 
 /**
+ * A reference to an AVFilterBuffer for audio. Since filters can manipulate the
+ * origin of an audio buffer to, for example, reduce precision without any memcpy,
+ * sample format and channel_layout are per-reference properties. Sample step is
+ * also useful when reducing the number of channels, etc, and so is also per-reference.
+ */
+typedef struct AVFilterSamplesRef
+{
+    AVFilterBuffer *samples;      ///< the audio buffer that this is a reference to
+    uint8_t *data[8];             ///< audio data for each channel
+    int linesize[8];              ///< number of bytes to next sample
+    int64_t pts;                  ///< presentation timestamp in units of 1/AV_TIME_BASE
+
+    int64_t channel_layout;       ///< channel layout of current buffer
+    int64_t sample_rate;          ///< samples per second
+    enum SampleFormat sample_fmt; ///< sample format
+
+    int samples_nb;               ///< number of samples in this buffer
+    /* Should this go here or in the AVFilterBuffer struct? */
+    int size;                     ///< size of buffer
+
+    int perms;                    ///< permissions
+
+    int planar;                   ///< is buffer planar or packed
+} AVFilterSamplesRef;
+
+/**
  * Add a new reference to a picture.
  * @param ref   an existing reference to the picture
  * @param pmask a bitmask containing the allowable permissions in the new
@@ -135,6 +162,25 @@ AVFilterPicRef *avfilter_ref_pic(AVFilterPicRef *ref, int pmask);
  * @param ref reference to the picture
  */
 void avfilter_unref_pic(AVFilterPicRef *ref);
+
+/**
+ * Add a new reference to an audio samples buffer.
+ *
+ * @param ref   an existing reference to the buffer
+ * @param pmask a bitmask containing the allowable permissions in the new
+ *              reference
+ * @return      a new reference to the buffer with the same properties as the
+ *              old, excluding any permissions denied by pmask
+ */
+AVFilterSamplesRef *avfilter_ref_samples(AVFilterSamplesRef *ref, int pmask);
+
+/**
+ * Remove a reference to a buffer of audio samples. If this is the last reference
+ * to the buffer, the buffer itself is also automatically freed.
+ *
+ * @param ref reference to the buffer
+ */
+void avfilter_unref_samples(AVFilterSamplesRef *ref);
 
 /**
  * A list of supported formats for one end of a filter link. This is used
@@ -180,7 +226,7 @@ typedef struct AVFilterFormats AVFilterFormats;
 struct AVFilterFormats
 {
     unsigned format_count;      ///< number of formats
-    int *formats;               ///< list of pixel formats
+    int *formats;               ///< list of pixel or sample formats
 
     unsigned refcount;          ///< number of references to this list
     AVFilterFormats ***refs;    ///< references to this list
@@ -189,7 +235,8 @@ struct AVFilterFormats
 /**
  * Create a list of supported formats. This is intended for use in
  * AVFilter->query_formats().
- * @param fmts list of pixel formats, terminated by PIX_FMT_NONE
+ * @param fmts list of pixel/sample formats, terminated
+ *  by PIX_FMT_NONE/SAMPLE_FMT_NONE
  * @return the format list, with no existing references
  */
 AVFilterFormats *avfilter_make_format_list(const int *fmts);
@@ -208,6 +255,21 @@ int avfilter_add_colorspace(AVFilterFormats **avff, enum PixelFormat pix_fmt);
  * Return a list of all colorspaces supported by FFmpeg.
  */
 AVFilterFormats *avfilter_all_colorspaces(void);
+
+/**
+ * Add sample_fmt to the list of sample formats contained in *avff.
+ * If *avff is NULL the function allocates the filter formats struct
+ * and puts its pointer in *avff.
+ *
+ * @return a non negative value in case of success, or a negative
+ * value corresponding to an AVERROR code in case of error
+ */
+int avfilter_add_sampleformat(AVFilterFormats **avff, enum SampleFormat sample_fmt);
+
+/**
+ * Return a list of all sampleformats supported by FFmpeg.
+ */
+AVFilterFormats *avfilter_all_sampleformats(void);
 
 /**
  * Return a format list which contains the intersection of the formats of
@@ -279,8 +341,7 @@ struct AVFilterPad
     const char *name;
 
     /**
-     * AVFilterPad type. Only video supported now, hopefully someone will
-     * add audio in the future.
+     * AVFilterPad type.
      */
     enum AVMediaType type;
 
@@ -322,6 +383,16 @@ struct AVFilterPad
     AVFilterPicRef *(*get_video_buffer)(AVFilterLink *link, int perms, int w, int h);
 
     /**
+     * Callback function to get an audio buffer. If NULL, the filter system will
+     * use avfilter_default_get_samples_ref().
+     *
+     * Input audio pads only.
+     */
+    AVFilterSamplesRef *(*get_samples_ref)(AVFilterLink *link, int perms,
+                                           int size, int64_t channel_layout,
+                                           enum SampleFormat sample_fmt, int planar);
+
+    /**
      * Callback called after the slices of a frame are completely sent. If
      * NULL, the filter layer will default to releasing the reference stored
      * in the link structure during start_frame().
@@ -339,13 +410,21 @@ struct AVFilterPad
     void (*draw_slice)(AVFilterLink *link, int y, int height, int slice_dir);
 
     /**
+     * Samples filtering callback. This is where a filter receives audio data
+     * and should do its processing.
+     *
+     * Input audio pads only.
+     */
+    void (*filter_samples)(AVFilterLink *link, AVFilterSamplesRef *samplesref);
+
+    /**
      * Frame poll callback. This returns the number of immediately available
      * frames. It should return a positive value if the next request_frame()
      * is guaranteed to return one frame (with no delay).
      *
      * Defaults to just calling the source poll_frame() method.
      *
-     * Output video pads only.
+     * Output pads only.
      */
     int (*poll_frame)(AVFilterLink *link);
 
@@ -354,7 +433,7 @@ struct AVFilterPad
      * frame being output over the given link. This should return zero on
      * success, and another value on error.
      *
-     * Output video pads only.
+     * Output pads only.
      */
     int (*request_frame)(AVFilterLink *link);
 
@@ -381,13 +460,19 @@ void avfilter_default_start_frame(AVFilterLink *link, AVFilterPicRef *picref);
 void avfilter_default_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 /** default handler for end_frame() for video inputs */
 void avfilter_default_end_frame(AVFilterLink *link);
-/** default handler for config_props() for video outputs */
+/** default handler for filter_samples() for audio inputs */
+void avfilter_default_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref);
+/** default handler for config_props() for audio/video outputs */
 int avfilter_default_config_output_link(AVFilterLink *link);
-/** default handler for config_props() for video inputs */
+/** default handler for config_props() for audio/video inputs */
 int avfilter_default_config_input_link (AVFilterLink *link);
 /** default handler for get_video_buffer() for video inputs */
 AVFilterPicRef *avfilter_default_get_video_buffer(AVFilterLink *link,
                                                   int perms, int w, int h);
+/** default handler for get_samples_ref() for audio inputs */
+AVFilterSamplesRef *avfilter_default_get_samples_ref(AVFilterLink *link, int perms,
+                                                      int size, int64_t channel_layout,
+                                                      enum SampleFormat sample_fmt, int planar);
 /**
  * A helper for query_formats() which sets all links to the same list of
  * formats. If there are no links hooked to this filter, the list of formats is
@@ -406,9 +491,17 @@ void avfilter_null_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 /** end_frame() handler for filters which simply pass video along */
 void avfilter_null_end_frame(AVFilterLink *link);
 
+/** filter_samples() handler for filters which simply pass audio along */
+void avfilter_null_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref);
+
 /** get_video_buffer() handler for filters which simply pass video along */
 AVFilterPicRef *avfilter_null_get_video_buffer(AVFilterLink *link,
                                                   int perms, int w, int h);
+
+/** get_samples_ref() handler for filters which simply pass audio along */
+AVFilterSamplesRef *avfilter_null_get_samples_ref(AVFilterLink *link, int perms,
+                                                   int size, int64_t channel_layout,
+                                                   enum SampleFormat sample_fmt, int planar);
 
 /**
  * Filter definition. This defines the pads a filter contains, and all the
@@ -497,9 +590,21 @@ struct AVFilterLink
         AVLINK_INIT             ///< complete
     } init_state;
 
+    /**
+     * AVFilterPad type.
+     */
+    enum AVMediaType type;
+
+    /* These two parameters apply only to video */
     int w;                      ///< agreed upon image width
     int h;                      ///< agreed upon image height
-    int format;                 ///< agreed upon image colorspace
+
+    /* These four parameters apply only to audio */
+    int samples_nb;             ///< number of samples in this buffer
+    int64_t channel_layout;     ///< channel layout of current buffer (see avcodec.h)
+    int64_t sample_rate;        ///< samples per second
+
+    int format;                 ///< agreed upon image colorspace or sample format
 
     /**
      * Lists of formats supported by the input and output filters respectively.
@@ -510,16 +615,21 @@ struct AVFilterLink
     AVFilterFormats *out_formats;
 
     /**
-     * The picture reference currently being sent across the link by the source
-     * filter. This is used internally by the filter system to allow
-     * automatic copying of pictures which do not have sufficient permissions
-     * for the destination. This should not be accessed directly by the
-     * filters.
+     * The picture (for video) or samples (for audio) reference currently being
+     * sent across the link by the source filter. This is used internally by the
+     * filter system to allow automatic copying of pictures/samples which do not
+     * have sufficient permissions for the destination. This should not be accessed
+     * directly by the filters.
      */
     AVFilterPicRef *srcpic;
 
     AVFilterPicRef *cur_pic;
     AVFilterPicRef *outpic;
+
+    AVFilterSamplesRef *src_samples;
+
+    AVFilterSamplesRef *cur_samples;
+    AVFilterSamplesRef *out_samples;
 };
 
 /**
@@ -552,6 +662,22 @@ int avfilter_config_links(AVFilterContext *filter);
  */
 AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
                                           int w, int h);
+
+/**
+ * Request an audio samples buffer with a specific set of permissions.
+ *
+ * @param link           the output link to the filter from which the buffer will
+ *                       be requested
+ * @param perms          the required access permissions
+ * @param samples_nb     the number of samples in the buffer to allocate
+ * @param channel_layout the number and type of channels per sample in the buffer to allocate
+ * @param sample_fmt     the format of each sample in the buffer to allocate
+ * @return               A reference to the samples. This must be unreferenced with
+ *                       avfilter_unref_samples when you are finished with it.
+ */
+AVFilterSamplesRef *avfilter_get_samples_ref(AVFilterLink *link, int perms,
+                                             int size, int64_t channel_layout,
+                                             enum SampleFormat sample_fmt, int planar);
 
 /**
  * Request an input frame from the filter at the other end of the link.
@@ -601,7 +727,15 @@ void avfilter_end_frame(AVFilterLink *link);
  */
 void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 
-/** Initialize the filter system. Register all builtin filters. */
+/**
+ * Send a buffer of audio samples to the next filter.
+ *
+ * @param link   the output link over which the audio samples are being sent
+ * @param planar samples are packed if 0 or planar if 1
+ */
+void avfilter_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref);
+
+/** Initialize the filter system. Registers all builtin filters. */
 void avfilter_register_all(void);
 
 /** Uninitialize the filter system. Unregister all filters. */

@@ -71,7 +71,7 @@ typedef struct AVFilterBuffer
 {
     uint8_t *data[4];           ///< picture data for each plane
     int linesize[4];            ///< number of bytes per line
-    enum PixelFormat format;    ///< colorspace
+    int format;                 ///< colorspace
 
     unsigned refcount;          ///< number of references to this image
 
@@ -95,6 +95,11 @@ typedef struct AVFilterBuffer
  *
  * TODO: add anything necessary for frame reordering
  */
+#define AV_PERM_READ     0x01   ///< can read from the buffer
+#define AV_PERM_WRITE    0x02   ///< can write to the buffer
+#define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
+#define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
+#define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 typedef struct AVFilterPicRef
 {
     AVFilterBuffer *pic;        ///< the picture that this is a reference to
@@ -109,11 +114,6 @@ typedef struct AVFilterPicRef
     AVRational pixel_aspect;    ///< pixel aspect ratio
 
     int perms;                  ///< permissions
-#define AV_PERM_READ     0x01   ///< can read from the buffer
-#define AV_PERM_WRITE    0x02   ///< can write to the buffer
-#define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
-#define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
-#define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 
     int interlaced;             ///< is frame interlaced
     int top_field_first;
@@ -180,7 +180,7 @@ typedef struct AVFilterFormats AVFilterFormats;
 struct AVFilterFormats
 {
     unsigned format_count;      ///< number of formats
-    enum PixelFormat *formats;  ///< list of pixel formats
+    int *formats;               ///< list of pixel formats
 
     unsigned refcount;          ///< number of references to this list
     AVFilterFormats ***refs;    ///< references to this list
@@ -189,10 +189,10 @@ struct AVFilterFormats
 /**
  * Create a list of supported formats. This is intended for use in
  * AVFilter->query_formats().
- * @param pix_fmts list of pixel formats, terminated by PIX_FMT_NONE
+ * @param fmts list of pixel formats, terminated by PIX_FMT_NONE
  * @return the format list, with no existing references
  */
-AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts);
+AVFilterFormats *avfilter_make_format_list(const int *fmts);
 
 /**
  * Add pix_fmt to the list of pixel formats contained in *avff.
@@ -499,7 +499,7 @@ struct AVFilterLink
 
     int w;                      ///< agreed upon image width
     int h;                      ///< agreed upon image height
-    enum PixelFormat format;    ///< agreed upon image colorspace
+    int format;                 ///< agreed upon image colorspace
 
     /**
      * Lists of formats supported by the input and output filters respectively.

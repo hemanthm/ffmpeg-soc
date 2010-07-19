@@ -160,7 +160,10 @@ void avfilter_set_common_formats(AVFilterContext *ctx, AVFilterFormats *formats)
 
 int avfilter_default_query_formats(AVFilterContext *ctx)
 {
-    avfilter_set_common_formats(ctx, avfilter_all_colorspaces());
+    enum AVMediaType type = AVMEDIA_TYPE_VIDEO;
+    if (ctx->inputs[0])  type = ctx->inputs[0]->type;
+    else if (ctx->outputs[0]) type = ctx->outputs[0]->type;
+    avfilter_set_common_formats(ctx, avfilter_all_formats(type));
     return 0;
 }
 

@@ -53,10 +53,26 @@ AVFilterPicRef *avfilter_ref_pic(AVFilterPicRef *ref, int pmask)
     return ret;
 }
 
+AVFilterSamplesRef *avfilter_ref_samples(AVFilterSamplesRef *ref, int pmask)
+{
+    AVFilterSamplesRef *ret = av_malloc(sizeof(AVFilterSamplesRef));
+    *ret = *ref;
+    ret->perms &= pmask;
+    ret->samples->refcount++;
+    return ret;
+}
+
 void avfilter_unref_pic(AVFilterPicRef *ref)
 {
     if(!(--ref->pic->refcount))
         ref->pic->free(ref->pic);
+    av_free(ref);
+}
+
+void avfilter_unref_samples(AVFilterSamplesRef *ref)
+{
+    if(!(--ref->samples->refcount))
+        ref->samples->free(ref->samples);
     av_free(ref);
 }
 
@@ -211,6 +227,20 @@ AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int w, 
     return ret;
 }
 
+AVFilterSamplesRef *avfilter_get_samples_ref(AVFilterLink *link, int perms, int size,
+                                              int64_t channel_layout, enum SampleFormat sample_fmt, int planar)
+{
+    AVFilterSamplesRef *ret = NULL;
+
+    if(link_dpad(link).get_samples_ref)
+        ret = link_dpad(link).get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
+
+    if(!ret)
+        ret = avfilter_default_get_samples_ref(link, perms, size, channel_layout, sample_fmt, planar);
+
+    return ret;
+}
+
 int avfilter_request_frame(AVFilterLink *link)
 {
     DPRINTF_START(NULL, request_frame); dprintf_link(NULL, link, 1);
@@ -329,6 +359,46 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
     if(!(draw_slice = link_dpad(link).draw_slice))
         draw_slice = avfilter_default_draw_slice;
     draw_slice(link, y, h, slice_dir);
+}
+
+void avfilter_filter_samples(AVFilterLink *link, AVFilterSamplesRef *samplesref)
+{
+    void (*filter_samples)(AVFilterLink *, AVFilterSamplesRef *);
+    AVFilterPad *dst = &link_dpad(link);
+
+    if (!(filter_samples = dst->filter_samples))
+        filter_samples = avfilter_default_filter_samples;
+
+    /* prepare to copy the samples if the buffer has insufficient permissions */
+    if ((dst->min_perms & samplesref->perms) != dst->min_perms ||
+        dst->rej_perms & samplesref->perms) {
+        unsigned int i, num_channels, copy_size;
+
+        av_log(link->dst, AV_LOG_INFO,
+                "Copying audio data in avfilter (have perms %x, need %x, reject %x)\n",
+                samplesref->perms, link_dpad(link).min_perms, link_dpad(link).rej_perms);
+
+        link->cur_samples = avfilter_default_get_samples_ref(link, dst->min_perms,
+                                                              samplesref->size, samplesref->channel_layout,
+                                                              samplesref->sample_fmt, samplesref->planar);
+        link->cur_samples->pts            = samplesref->pts;
+        link->cur_samples->sample_rate    = samplesref->sample_rate;
+
+        /* Copy actual data into new samples buffer */
+
+        /* FIXME: Need to use hamming weight count function instead once libavutil has the required function */
+        num_channels = avcodec_channel_layout_num_channels(samplesref->channel_layout);
+        copy_size = samplesref->size/num_channels;
+
+        for (i = 0; i < num_channels; i++)
+            memcpy(link->cur_samples->data[i], samplesref->data[i], copy_size);
+
+        avfilter_unref_samples(samplesref);
+    }
+    else
+        link->cur_samples = samplesref;
+
+    filter_samples(link, link->cur_samples);
 }
 
 #define MAX_REGISTERED_AVFILTERS_NB 64

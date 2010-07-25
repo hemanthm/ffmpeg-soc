@@ -27,8 +27,17 @@
 #include <stdint.h>
 #include "avcodec.h"
 
+/* calculate image plane linesizes based on colorspace and width */
+int ff_fill_image_linesize(int linesize[4], enum PixelFormat pix_fmt, int width);
+
+/* wrapper for ff_fill_image_linesize that takes an AVPicture pointer */
 int ff_fill_linesize(AVPicture *picture, enum PixelFormat pix_fmt, int width);
 
+/* calculate offsets of image planes into a frame buffer */
+int ff_fill_image_data_ptr(uint8_t *data[4], uint8_t *ptr, enum PixelFormat pix_fmt,
+                           int height, const int linesize[4]);
+
+/* wrapper for ff_fill_image_data_ptr that takes an AVPicture pointer */
 int ff_fill_pointer(AVPicture *picture, uint8_t *ptr, enum PixelFormat pix_fmt, int height);
 
 int ff_get_plane_bytewidth(enum PixelFormat pix_fmt, int width, int plane);

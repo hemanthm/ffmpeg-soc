@@ -490,7 +490,7 @@ int ff_set_systematic_pal(uint32_t pal[256], enum PixelFormat pix_fmt){
     return 0;
 }
 
-static int ff_fill_image_linesize(int linesize[4], enum PixelFormat pix_fmt, int width)
+int ff_fill_image_linesize(int linesize[4], enum PixelFormat pix_fmt, int width)
 {
     int i;
     const AVPixFmtDescriptor *desc = &av_pix_fmt_descriptors[pix_fmt];
@@ -525,7 +525,7 @@ static int ff_fill_image_linesize(int linesize[4], enum PixelFormat pix_fmt, int
     return 0;
 }
 
-static int ff_fill_image_data_ptr(uint8_t *data[4], uint8_t *ptr, enum PixelFormat pix_fmt,
+int ff_fill_image_data_ptr(uint8_t *data[4], uint8_t *ptr, enum PixelFormat pix_fmt,
                            int height, const int linesize[4])
 {
     int size, h2, size2;

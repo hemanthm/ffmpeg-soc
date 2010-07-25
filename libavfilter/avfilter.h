@@ -25,8 +25,8 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVFILTER_VERSION_MAJOR  1
-#define LIBAVFILTER_VERSION_MINOR 20
-#define LIBAVFILTER_VERSION_MICRO  1
+#define LIBAVFILTER_VERSION_MINOR 25
+#define LIBAVFILTER_VERSION_MICRO  0
 
 #define LIBAVFILTER_VERSION_INT AV_VERSION_INT(LIBAVFILTER_VERSION_MAJOR, \
                                                LIBAVFILTER_VERSION_MINOR, \
@@ -59,37 +59,38 @@ typedef struct AVFilterContext AVFilterContext;
 typedef struct AVFilterLink    AVFilterLink;
 typedef struct AVFilterPad     AVFilterPad;
 
-/* TODO: look for other flags which may be useful in this structure (interlace
- * flags, etc)
- */
 /**
- * A reference-counted picture data type used by the filter system. Filters
+ * A reference-counted buffer data type used by the filter system. Filters
  * should not store pointers to this structure directly, but instead use the
  * AVFilterPicRef structure below.
  */
-typedef struct AVFilterPic
+typedef struct AVFilterBuffer
 {
-    uint8_t *data[4];           ///< picture data for each plane
+    uint8_t *data[4];           ///< buffer data for each plane
     int linesize[4];            ///< number of bytes per line
     enum PixelFormat format;    ///< colorspace
 
-    unsigned refcount;          ///< number of references to this image
+    unsigned refcount;          ///< number of references to this buffer
 
     /** private data to be used by a custom free function */
     void *priv;
     /**
-     * A pointer to the function to deallocate this image if the default
+     * A pointer to the function to deallocate this buffer if the default
      * function is not sufficient. This could, for example, add the memory
      * back into a memory pool to be reused later without the overhead of
      * reallocating it from scratch.
      */
-    void (*free)(struct AVFilterPic *pic);
+    void (*free)(struct AVFilterBuffer *buf);
+} AVFilterBuffer;
 
-    int w, h;                  ///< width and height of the allocated buffer
-} AVFilterPic;
+#define AV_PERM_READ     0x01   ///< can read from the buffer
+#define AV_PERM_WRITE    0x02   ///< can write to the buffer
+#define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
+#define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
+#define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 
 /**
- * A reference to an AVFilterPic. Since filters can manipulate the origin of
+ * A reference to an AVFilterBuffer. Since filters can manipulate the origin of
  * a picture to, for example, crop image without any memcpy, the picture origin
  * and dimensions are per-reference properties. Linesize is also useful for
  * image flipping, frame to field filters, etc, and so is also per-reference.
@@ -98,7 +99,7 @@ typedef struct AVFilterPic
  */
 typedef struct AVFilterPicRef
 {
-    AVFilterPic *pic;           ///< the picture that this is a reference to
+    AVFilterBuffer *pic;        ///< the picture that this is a reference to
     uint8_t *data[4];           ///< picture data for each plane
     int linesize[4];            ///< number of bytes per line
     int w;                      ///< image width
@@ -109,16 +110,24 @@ typedef struct AVFilterPicRef
 
     AVRational pixel_aspect;    ///< pixel aspect ratio
 
-    int perms;                  ///< permissions
-#define AV_PERM_READ     0x01   ///< can read from the buffer
-#define AV_PERM_WRITE    0x02   ///< can write to the buffer
-#define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
-#define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
-#define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
+    int perms;                  ///< permissions, see the AV_PERM_* flags
 
     int interlaced;             ///< is frame interlaced
     int top_field_first;
 } AVFilterPicRef;
+
+/**
+ * Copy properties of src to dst, without copying the actual video
+ * data.
+ */
+static inline void avfilter_copy_picref_props(AVFilterPicRef *dst, AVFilterPicRef *src)
+{
+    dst->pts             = src->pts;
+    dst->pos             = src->pos;
+    dst->pixel_aspect    = src->pixel_aspect;
+    dst->interlaced      = src->interlaced;
+    dst->top_field_first = src->top_field_first;
+}
 
 /**
  * Add a new reference to a picture.

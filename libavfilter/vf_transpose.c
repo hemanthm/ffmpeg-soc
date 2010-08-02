@@ -88,10 +88,10 @@ static void end_frame(AVFilterLink *link)
         }
     }
 
-    avfilter_unref_pic(in);
+    avfilter_unref_buffer(in);
     avfilter_draw_slice(output, 0, out->h, 1);
     avfilter_end_frame(output);
-    avfilter_unref_pic(out);
+    avfilter_unref_buffer(out);
 }
 
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
@@ -108,7 +108,7 @@ static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
         out->outpic->pixel_aspect.den = picref->pixel_aspect.num;
     }
 
-    avfilter_start_frame(out, avfilter_ref_pic(out->outpic, ~0));
+    avfilter_start_frame(out, avfilter_ref_buffer(out->outpic, ~0));
 }
 
 AVFilter avfilter_vf_transpose =

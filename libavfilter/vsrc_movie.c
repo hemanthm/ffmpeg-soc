@@ -227,7 +227,7 @@ static int request_frame(AVFilterLink *link)
     if (mv->is_done)
         return AVERROR_EOF;
 
-    out = avfilter_ref_pic(mv->pic, ~0);
+    out = avfilter_ref_buffer(mv->pic, ~0);
     out->pixel_aspect = mv->codec_ctx->sample_aspect_ratio;
 
     avfilter_start_frame(link, out);
@@ -247,7 +247,7 @@ static av_cold void uninit(AVFilterContext *ctx)
         av_close_input_file(mv->format_ctx);
     av_freep(&mv->frame);
     if(mv->pic)
-        avfilter_unref_pic(mv->pic);
+        avfilter_unref_buffer(mv->pic);
 }
 
 AVFilter avfilter_vsrc_movie =

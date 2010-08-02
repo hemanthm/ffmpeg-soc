@@ -109,7 +109,7 @@ static AVFilterBufferRef *get_video_buffer(AVFilterLink *inlink, int perms, int 
 
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
-    AVFilterBufferRef *outpicref = avfilter_ref_pic(picref, ~0);
+    AVFilterBufferRef *outpicref = avfilter_ref_buffer(picref, ~0);
 
     link->dst->outputs[0]->outpic = outpicref;
 
@@ -121,7 +121,7 @@ static void end_frame(AVFilterLink *link)
     FadeContext *fade = link->dst->priv;
 
     avfilter_end_frame(link->dst->outputs[0]);
-    avfilter_unref_pic(link->cur_pic);
+    avfilter_unref_buffer(link->cur_pic);
 
     if (fade->frame_index >= fade->start_frame &&
         fade->frame_index <= fade->stop_frame)

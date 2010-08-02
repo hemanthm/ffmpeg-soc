@@ -99,7 +99,7 @@ static AVFilterBufferRef *get_video_buffer(AVFilterLink *link, int perms,
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     SetPTSContext *setpts = link->dst->priv;
-    AVFilterBufferRef *ref2 = avfilter_ref_pic(picref, ~0);
+    AVFilterBufferRef *ref2 = avfilter_ref_buffer(picref, ~0);
 
 
     if (setpts->const_values[POV_STARTPTS] == AV_NOPTS_VALUE)

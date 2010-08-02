@@ -51,13 +51,13 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 static av_cold void uninit(AVFilterContext *ctx)
 {
     FPSContext *fps = ctx->priv;
-    if(fps->pic) avfilter_unref_pic(fps->pic);
+    if(fps->pic) avfilter_unref_buffer(fps->pic);
 }
 
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     FPSContext *fps = link->dst->priv;
-    if(fps->pic) avfilter_unref_pic(fps->pic);
+    if(fps->pic) avfilter_unref_buffer(fps->pic);
     fps->pic = picref;
 }
 
@@ -95,11 +95,11 @@ static int request_frame(AVFilterLink *link)
                 return -1;
 
     fps->has_frame=0;
-    avfilter_start_frame(link, avfilter_ref_pic(fps->pic, ~AV_PERM_WRITE));
+    avfilter_start_frame(link, avfilter_ref_buffer(fps->pic, ~AV_PERM_WRITE));
     avfilter_draw_slice (link, 0, fps->pic->h, 1);
     avfilter_end_frame  (link);
 
-    avfilter_unref_pic(fps->pic);
+    avfilter_unref_buffer(fps->pic);
     fps->pic = NULL;
 
     fps->pts += fps->timebase;

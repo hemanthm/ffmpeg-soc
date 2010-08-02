@@ -79,7 +79,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     for(i = 0; i < 2; i ++)
         for(j = 0; j < 2; j ++)
             if(over->pics[i][j])
-                avfilter_unref_pic(over->pics[i][j]);
+                avfilter_unref_buffer(over->pics[i][j]);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -163,7 +163,7 @@ static void shift_input(OverlayContext *over, int idx)
 {
     assert(over->pics[idx][0]);
     assert(over->pics[idx][1]);
-    avfilter_unref_pic(over->pics[idx][0]);
+    avfilter_unref_buffer(over->pics[idx][0]);
     over->pics[idx][0] = over->pics[idx][1];
     over->pics[idx][1] = NULL;
 }
@@ -356,10 +356,10 @@ static int request_frame(AVFilterLink *link)
     pic->pts = FFMAX(over->pics[0][0]->pts, over->pics[1][0]->pts);
 
     /* and send it to the next filter */
-    avfilter_start_frame(link, avfilter_ref_pic(pic, ~0));
+    avfilter_start_frame(link, avfilter_ref_buffer(pic, ~0));
     avfilter_draw_slice (link, 0, pic->h, 1);
     avfilter_end_frame  (link);
-    avfilter_unref_pic(pic);
+    avfilter_unref_buffer(pic);
 
     return 0;
 }

@@ -50,7 +50,7 @@ typedef struct {
      *  pics[1][0..1] are pictures for the sub image.
      *  pics[x][0]    are previously outputted images.
      *  pics[x][1]    are queued, yet unused frames for each input. */
-    AVFilterPicRef *pics[2][2];
+    AVFilterBufferRef *pics[2][2];
 
     int bpp;                    //< bytes per pixel
     int hsub, vsub;             //< chroma subsampling
@@ -168,7 +168,7 @@ static void shift_input(OverlayContext *over, int idx)
     over->pics[idx][1] = NULL;
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     OverlayContext *over = link->dst->priv;
     /* There shouldn't be any previous queued frame in this queue */
@@ -201,8 +201,8 @@ static int lower_timestamp(OverlayContext *over)
     return (over->pics[0][1]->pts > over->pics[1][1]->pts);
 }
 
-static void copy_image_rgb(AVFilterPicRef *dst, int x, int y,
-                           AVFilterPicRef *src, int w, int h, int bpp)
+static void copy_image_rgb(AVFilterBufferRef *dst, int x, int y,
+                           AVFilterBufferRef *src, int w, int h, int bpp)
 {
     AVPicture pic;
 
@@ -249,8 +249,8 @@ static void copy_blended(uint8_t* out, int out_linesize,
     }
 }
 
-static void copy_image_yuv(AVFilterPicRef *dst, int x, int y,
-                           AVFilterPicRef *src, int w, int h,
+static void copy_image_yuv(AVFilterBufferRef *dst, int x, int y,
+                           AVFilterBufferRef *src, int w, int h,
                            int bpp, int hsub, int vsub)
 {
     AVPicture pic;
@@ -282,8 +282,8 @@ static void copy_image_yuv(AVFilterPicRef *dst, int x, int y,
     }
 }
 
-static void copy_image(AVFilterPicRef *dst, int x, int y,
-                       AVFilterPicRef *src, int w, int h,
+static void copy_image(AVFilterBufferRef *dst, int x, int y,
+                       AVFilterBufferRef *src, int w, int h,
                        int bpp, int hsub, int vsub)
 {
     if (dst->format == PIX_FMT_YUV420P)
@@ -294,7 +294,7 @@ static void copy_image(AVFilterPicRef *dst, int x, int y,
 
 static int request_frame(AVFilterLink *link)
 {
-    AVFilterPicRef *pic;
+    AVFilterBufferRef *pic;
     OverlayContext *over = link->src->priv;
     int idx;
     int x, y, w, h;

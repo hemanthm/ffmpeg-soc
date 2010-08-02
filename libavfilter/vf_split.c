@@ -21,7 +21,7 @@
 
 #include "avfilter.h"
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     avfilter_start_frame(link->dst->outputs[0],
                          avfilter_ref_pic(picref, ~AV_PERM_WRITE));

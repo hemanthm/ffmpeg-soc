@@ -40,7 +40,7 @@ typedef struct {
     AVFrame          *frame;
 
     int w, h;
-    AVFilterPicRef *pic;
+    AVFilterBufferRef *pic;
 } MovieContext;
 
 static int movie_init(AVFilterContext *ctx)
@@ -219,7 +219,7 @@ static int movie_get_frame(AVFilterLink *link)
 
 static int request_frame(AVFilterLink *link)
 {
-    AVFilterPicRef *out;
+    AVFilterBufferRef *out;
     MovieContext *mv = link->src->priv;
 
     movie_get_frame(link);

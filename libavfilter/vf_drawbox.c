@@ -92,7 +92,7 @@ static int config_input(AVFilterLink *link)
     return 0;
 }
 
-static void draw_box(AVFilterPicRef *pic, BoxContext* context, box_color color)
+static void draw_box(AVFilterBufferRef *pic, BoxContext* context, box_color color)
 {
     int x, y;
     int channel;
@@ -121,7 +121,7 @@ static void end_frame(AVFilterLink *link)
 {
     BoxContext *context = link->dst->priv;
     AVFilterLink *output = link->dst->outputs[0];
-    AVFilterPicRef *pic = link->cur_pic;
+    AVFilterBufferRef *pic = link->cur_pic;
 
     draw_box(pic,context,context->color);
 

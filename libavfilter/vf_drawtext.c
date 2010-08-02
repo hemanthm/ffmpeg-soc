@@ -461,7 +461,7 @@ static void draw_text(AVFilterContext *ctx, AVFilterBufferRef *pic_ref, int widt
 static void end_frame(AVFilterLink *link)
 {
     AVFilterLink *output = link->dst->outputs[0];
-    AVFilterBufferRef *pic_ref = link->cur_pic;
+    AVFilterBufferRef *pic_ref = link->cur_buf;
 
     draw_text(link->dst, pic_ref, pic_ref->w, pic_ref->h);
 

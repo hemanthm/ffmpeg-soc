@@ -528,10 +528,10 @@ struct AVFilterLink
      * for the destination. This should not be accessed directly by the
      * filters.
      */
-    AVFilterBufferRef *srcpic;
+    AVFilterBufferRef *src_buf;
 
-    AVFilterBufferRef *cur_pic;
-    AVFilterBufferRef *outpic;
+    AVFilterBufferRef *cur_buf;
+    AVFilterBufferRef *out_buf;
 };
 
 /**

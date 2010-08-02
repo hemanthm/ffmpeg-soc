@@ -27,7 +27,7 @@
 
 #include "avfilter.h"
 #include "parseutils.h"
-#include "libavcodec/colorspace.h"
+#include "libavutil/colorspace.h"
 #include "libavutil/pixdesc.h"
 
 #undef time
@@ -133,14 +133,8 @@ static inline int extract_color(AVFilterContext *ctx, char *color_str, unsigned 
     color[0] = RGB_TO_Y(rgba[0], rgba[1], rgba[2]);
     color[1] = RGB_TO_U(rgba[0], rgba[1], rgba[2], 0);
     color[2] = RGB_TO_V(rgba[0], rgba[1], rgba[2], 0);
+    color[3] = rgba[3];
 
-    /* FIXME: av_parse_color currently sets alpha to 0 if no alpha is specified.
-     * So we force alpha = 0xFF (opaque), here in such a case.
-     */
-    if (rgba[3] != 0)
-        color[3] = rgba[3];
-    else
-        color[3] = 0xFF;
     return 0;
 }
 

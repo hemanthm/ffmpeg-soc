@@ -1,7 +1,7 @@
 include $(SUBDIR)../config.mak
 
 NAME = avfilter
-FFLIBS = avcodec avutil
+FFLIBS = avcodec avcore avutil
 FFLIBS-$(CONFIG_SCALE_FILTER)  += swscale
 FFLIBS-$(CONFIG_AVFILTER_LAVF) += avformat
 
@@ -29,6 +29,7 @@ OBJS-$(CONFIG_NOFORMAT_FILTER)               += vf_format.o
 OBJS-$(CONFIG_NULL_FILTER)                   += vf_null.o
 OBJS-$(CONFIG_OVERLAY_FILTER)                += vf_overlay.o
 OBJS-$(CONFIG_PAD_FILTER)                    += vf_pad.o
+OBJS-$(CONFIG_PIXDESCTEST_FILTER)            += vf_pixdesctest.o
 OBJS-$(CONFIG_PIXELASPECT_FILTER)            += vf_aspect.o
 OBJS-$(CONFIG_ROTATE_FILTER)                 += vf_rotate.o
 OBJS-$(CONFIG_SCALE_FILTER)                  += vf_scale.o
@@ -40,6 +41,7 @@ OBJS-$(CONFIG_UNSHARP_FILTER)                += vf_unsharp.o
 OBJS-$(CONFIG_VFLIP_FILTER)                  += vf_vflip.o
 
 OBJS-$(CONFIG_BUFFER_FILTER)                 += vsrc_buffer.o
+OBJS-$(CONFIG_COLOR_FILTER)                  += vf_pad.o
 OBJS-$(CONFIG_MOVIE_FILTER)                  += vsrc_movie.o
 OBJS-$(CONFIG_NULLSRC_FILTER)                += vsrc_nullsrc.o
 

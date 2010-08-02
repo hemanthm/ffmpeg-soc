@@ -27,7 +27,7 @@
 
 #include "avfilter.h"
 #include "parseutils.h"
-#include "libavcodec/colorspace.h"
+#include "libavutil/colorspace.h"
 
 typedef struct
 {

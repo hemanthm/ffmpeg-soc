@@ -97,14 +97,14 @@ untested special converters
 #define RU (-(int)(0.169*224/255*(1<<RGB2YUV_SHIFT)+0.5))
 
 static const double rgb2yuv_table[8][9]={
-    {0.7152, 0.0722, 0.2126, -0.386, 0.5, -0.115, -0.454, -0.046, 0.5},
-    {0.7152, 0.0722, 0.2126, -0.386, 0.5, -0.115, -0.454, -0.046, 0.5},
-    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5},
-    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5},
+    {0.7152, 0.0722, 0.2126, -0.386, 0.5, -0.115, -0.454, -0.046, 0.5}, //ITU709
+    {0.7152, 0.0722, 0.2126, -0.386, 0.5, -0.115, -0.454, -0.046, 0.5}, //ITU709
+    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5}, //DEFAULT / ITU601 / ITU624 / SMPTE 170M
+    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5}, //DEFAULT / ITU601 / ITU624 / SMPTE 170M
     {0.59  , 0.11  , 0.30  , -0.331, 0.5, -0.169, -0.421, -0.079, 0.5}, //FCC
-    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5},
-    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5}, //SMPTE 170M
-    {0.701 , 0.087 , 0.212 , -0.384, 0.5  -0.116, -0.445, -0.055, 0.5}, //SMPTE 240M
+    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5}, //DEFAULT / ITU601 / ITU624 / SMPTE 170M
+    {0.587 , 0.114 , 0.299 , -0.331, 0.5, -0.169, -0.419, -0.081, 0.5}, //DEFAULT / ITU601 / ITU624 / SMPTE 170M
+    {0.701 , 0.087 , 0.212 , -0.384, 0.5, -0.116, -0.445, -0.055, 0.5}, //SMPTE 240M
 };
 
 /*
@@ -989,7 +989,7 @@ static void fillPlane(uint8_t* plane, int stride, int width, int height, int y, 
     }
 }
 
-static inline void rgb48ToY(uint8_t *dst, const uint8_t *src, int width,
+static inline void rgb48ToY(uint8_t *dst, const uint8_t *src, long width,
                             uint32_t *unused)
 {
     int i;
@@ -1004,7 +1004,7 @@ static inline void rgb48ToY(uint8_t *dst, const uint8_t *src, int width,
 
 static inline void rgb48ToUV(uint8_t *dstU, uint8_t *dstV,
                              const uint8_t *src1, const uint8_t *src2,
-                             int width, uint32_t *unused)
+                             long width, uint32_t *unused)
 {
     int i;
     assert(src1==src2);
@@ -1020,7 +1020,7 @@ static inline void rgb48ToUV(uint8_t *dstU, uint8_t *dstV,
 
 static inline void rgb48ToUV_half(uint8_t *dstU, uint8_t *dstV,
                                   const uint8_t *src1, const uint8_t *src2,
-                                  int width, uint32_t *unused)
+                                  long width, uint32_t *unused)
 {
     int i;
     assert(src1==src2);
@@ -1659,13 +1659,15 @@ static int planarCopyWrapper(SwsContext *c, const uint8_t* src[], int srcStride[
 
                 for (i=0; i<height; i++) {
                     for (j=0; j<length; j++)
-                        ((uint16_t*)dstPtr)[j] = bswap_16(((const uint16_t*)srcPtr)[j]);
+                        ((uint16_t*)dstPtr)[j] = av_bswap16(((const uint16_t*)srcPtr)[j]);
                     srcPtr+= srcStride[plane];
                     dstPtr+= dstStride[plane];
                 }
-            } else if (dstStride[plane]==srcStride[plane] && srcStride[plane] > 0)
-                memcpy(dst[plane] + dstStride[plane]*y, src[plane], height*dstStride[plane]);
-            else {
+            } else if (dstStride[plane] == srcStride[plane] &&
+                       srcStride[plane] > 0 && srcStride[plane] == length) {
+                memcpy(dst[plane] + dstStride[plane]*y, src[plane],
+                       height*dstStride[plane]);
+            } else {
                 if(is16BPS(c->srcFormat) && is16BPS(c->dstFormat))
                     length*=2;
                 for (i=0; i<height; i++) {

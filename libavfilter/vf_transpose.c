@@ -20,7 +20,7 @@
  */
 
 /**
- * @file libavfilter/vf_transpose.c
+ * @file
  * Transposition filter
  *
  * @todo handle packed pixel formats

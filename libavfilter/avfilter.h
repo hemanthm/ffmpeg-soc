@@ -66,8 +66,8 @@ typedef struct AVFilterPad     AVFilterPad;
  */
 typedef struct AVFilterBuffer
 {
-    uint8_t *data[4];           ///< buffer data for each plane
-    int linesize[4];            ///< number of bytes per line
+    uint8_t *data[8];           ///< buffer data for each plane
+    int linesize[8];            ///< number of bytes per line
     int format;                 ///< media format
 
     unsigned refcount;          ///< number of references to this buffer

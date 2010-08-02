@@ -210,7 +210,7 @@ static void copy_image_rgb(AVFilterPicRef *dst, int x, int y,
     pic.data[0] += x * bpp;
     pic.data[0] += y * pic.linesize[0];
 
-    if (src->pic->format == PIX_FMT_BGRA) {
+    if (src->format == PIX_FMT_BGRA) {
         for (y = 0; y < h; y++) {
                   uint8_t *optr = pic.data[0]  + y * pic.linesize[0];
             const uint8_t *iptr = src->data[0] + y * src->linesize[0];
@@ -224,7 +224,7 @@ static void copy_image_rgb(AVFilterPicRef *dst, int x, int y,
             }
         }
     } else {
-        av_picture_copy(&pic, (AVPicture *)src->data, dst->pic->format, w, h);
+        av_picture_copy(&pic, (AVPicture *)src->data, dst->format, w, h);
     }
 }
 
@@ -270,15 +270,15 @@ static void copy_image_yuv(AVFilterPicRef *dst, int x, int y,
         }
     }
 
-    if (src->pic->format == PIX_FMT_YUVA420P) {
+    if (src->format == PIX_FMT_YUVA420P) {
         int chroma_w = w>>hsub;
         int chroma_h = h>>vsub;
-        assert(dst->pic->format == PIX_FMT_YUV420P);
+        assert(dst->format == PIX_FMT_YUV420P);
         copy_blended(pic.data[0], pic.linesize[0], src->data[0], src->linesize[0], src->data[3], src->linesize[3], w, h, 0, 0);
         copy_blended(pic.data[1], pic.linesize[1], src->data[1], src->linesize[1], src->data[3], src->linesize[3], chroma_w, chroma_h, hsub, vsub);
         copy_blended(pic.data[2], pic.linesize[2], src->data[2], src->linesize[2], src->data[3], src->linesize[3], chroma_w, chroma_h, hsub, vsub);
     } else {
-        av_picture_copy(&pic, (AVPicture *)src->data, dst->pic->format, w, h);
+        av_picture_copy(&pic, (AVPicture *)src->data, dst->format, w, h);
     }
 }
 
@@ -286,7 +286,7 @@ static void copy_image(AVFilterPicRef *dst, int x, int y,
                        AVFilterPicRef *src, int w, int h,
                        int bpp, int hsub, int vsub)
 {
-    if (dst->pic->format == PIX_FMT_YUV420P)
+    if (dst->format == PIX_FMT_YUV420P)
         return copy_image_yuv(dst, x, y, src, w, h, bpp, hsub, vsub);
     else
         return copy_image_rgb(dst, x, y, src, w, h, bpp);

@@ -190,7 +190,7 @@ static int movie_get_frame(AVFilterLink *link)
             // Did we get a video frame?
             if(frame_finished) {
                 av_picture_copy((AVPicture *)&mv->pic->data, (AVPicture *)mv->frame,
-                                mv->pic->pic->format, link->w, link->h);
+                                mv->pic->format, link->w, link->h);
 
                 // Advance in the time line
                 mv->pic->pts = av_rescale_q(packet.pts,

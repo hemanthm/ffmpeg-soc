@@ -22,6 +22,7 @@
 /* #define DEBUG */
 
 #include "libavcodec/imgconvert.h"
+#include "libavcodec/audioconvert.h"
 #include "libavutil/pixdesc.h"
 #include "avfilter.h"
 #include "internal.h"
@@ -45,6 +46,11 @@ const char *avfilter_license(void)
 #define link_dpad(link)     link->dst-> input_pads[link->dstpad]
 #define link_spad(link)     link->src->output_pads[link->srcpad]
 
+#define AVFILTER_COPY_AUDIO_PROPS(dst, src) {\
+    dst->props = av_malloc(sizeof(AVFilterBufferRefAudioProps));\
+    memcpy(dst->props, src->props, sizeof(AVFilterBufferRefAudioProps));\
+}
+
 #define AVFILTER_COPY_VIDEO_PROPS(dst, src) {\
     dst->props = av_malloc(sizeof(AVFilterBufferRefVideoProps));\
     memcpy(dst->props, src->props, sizeof(AVFilterBufferRefVideoProps));\
@@ -54,7 +60,11 @@ AVFilterBufferRef *avfilter_ref_buffer(AVFilterBufferRef *ref, int pmask)
 {
     AVFilterBufferRef *ret = av_malloc(sizeof(AVFilterBufferRef));
     *ret = *ref;
-    AVFILTER_COPY_VIDEO_PROPS(ret, ref);
+    if (ref->type == AVMEDIA_TYPE_VIDEO) {
+        AVFILTER_COPY_VIDEO_PROPS(ret, ref);
+    } else if (ref->type == AVMEDIA_TYPE_AUDIO) {
+        AVFILTER_COPY_AUDIO_PROPS(ret, ref);
+    }
     ret->perms &= pmask;
     ret->buf->refcount ++;
     return ret;
@@ -215,7 +225,25 @@ AVFilterBufferRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int 
     if(!ret)
         ret = avfilter_default_get_video_buffer(link, perms, w, h);
 
+    ret->type = AVMEDIA_TYPE_VIDEO;
+
     FF_DPRINTF_START(NULL, get_video_buffer); ff_dprintf_link(NULL, link, 0); dprintf(NULL, " returning "); ff_dprintf_picref(NULL, ret, 1);
+
+    return ret;
+}
+
+AVFilterBufferRef *avfilter_get_audio_buffer(AVFilterLink *link, int perms, int size,
+                                             int64_t channel_layout, enum SampleFormat sample_fmt, int planar)
+{
+    AVFilterBufferRef *ret = NULL;
+
+    if(link_dpad(link).get_audio_buffer)
+        ret = link_dpad(link).get_audio_buffer(link, perms, size, channel_layout, sample_fmt, planar);
+
+    if(!ret)
+        ret = avfilter_default_get_audio_buffer(link, perms, size, channel_layout, sample_fmt, planar);
+
+    ret->type = AVMEDIA_TYPE_AUDIO;
 
     return ret;
 }
@@ -340,6 +368,49 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
     if(!(draw_slice = link_dpad(link).draw_slice))
         draw_slice = avfilter_default_draw_slice;
     draw_slice(link, y, h, slice_dir);
+}
+
+void avfilter_filter_samples(AVFilterLink *link, AVFilterBufferRef *samplesref)
+{
+    AVFilterBufferRefAudioProps *sample_props, *cur_buf_props;
+    void (*filter_samples)(AVFilterLink *, AVFilterBufferRef *);
+    AVFilterPad *dst = &link_dpad(link);
+    AVFILTER_GET_REF_AUDIO_PROPS(sample_props, samplesref);
+
+    if (!(filter_samples = dst->filter_samples))
+        filter_samples = avfilter_default_filter_samples;
+
+    /* prepare to copy the samples if the buffer has insufficient permissions */
+    if ((dst->min_perms & samplesref->perms) != dst->min_perms ||
+        dst->rej_perms & samplesref->perms) {
+        unsigned int i, num_channels, copy_size;
+
+        av_log(link->dst, AV_LOG_INFO,
+               "Copying audio data in avfilter (have perms %x, need %x, reject %x)\n",
+               samplesref->perms, link_dpad(link).min_perms, link_dpad(link).rej_perms);
+
+        link->cur_buf = avfilter_default_get_audio_buffer(link, dst->min_perms,
+                                                         sample_props->size, sample_props->channel_layout,
+                                                         samplesref->format, sample_props->planar);
+        AVFILTER_GET_REF_AUDIO_PROPS(cur_buf_props, link->cur_buf);
+        link->cur_buf->pts         = samplesref->pts;
+        cur_buf_props->sample_rate = sample_props->sample_rate;
+
+        /* Copy actual data into new samples buffer */
+
+        /* FIXME: Need to use hamming weight count function instead once libavutil has the required function */
+        num_channels = avcodec_channel_layout_num_channels(sample_props->channel_layout);
+        copy_size = sample_props->size/num_channels;
+
+        for (i = 0; i < num_channels; i++)
+            memcpy(link->cur_buf->data[i], samplesref->data[i], copy_size);
+
+        avfilter_unref_buffer(samplesref);
+    }
+    else
+        link->cur_buf = samplesref;
+
+    filter_samples(link, link->cur_buf);
 }
 
 #define MAX_REGISTERED_AVFILTERS_NB 64

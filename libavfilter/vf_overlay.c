@@ -295,6 +295,7 @@ static void copy_image(AVFilterBufferRef *dst, int x, int y,
 static int request_frame(AVFilterLink *link)
 {
     AVFilterBufferRef *pic;
+    AVFilterBufferRefVideoProps *pic_props, *opic_props;
     OverlayContext *over = link->src->priv;
     int idx;
     int x, y, w, h;
@@ -336,18 +337,20 @@ static int request_frame(AVFilterLink *link)
             shift_input(over, 1);
         }
     }
+    AVFILTER_GET_REF_VIDEO_PROPS(opic_props, over->pics[0][0]);
 
     /* we draw the output frame */
     pic = avfilter_get_video_buffer(link, AV_PERM_WRITE, link->w, link->h);
+    AVFILTER_GET_REF_VIDEO_PROPS(pic_props, pic);
     if(over->pics[0][0]) {
-        pic->pixel_aspect = over->pics[0][0]->pixel_aspect;
+        pic_props->pixel_aspect = opic_props->pixel_aspect;
         copy_image(pic, 0, 0, over->pics[0][0], link->w, link->h,
                    over->bpp, over->hsub, over->vsub);
     }
     x = FFMIN(over->x, link->w-1);
     y = FFMIN(over->y, link->h-1);
-    w = FFMIN(link->w-x, over->pics[1][0]->w);
-    h = FFMIN(link->h-y, over->pics[1][0]->h);
+    w = FFMIN(link->w-x, opic_props->w);
+    h = FFMIN(link->h-y, opic_props->h);
     if(over->pics[1][0])
         copy_image(pic, x, y, over->pics[1][0], w, h,
                    over->bpp, over->hsub, over->vsub);
@@ -357,7 +360,7 @@ static int request_frame(AVFilterLink *link)
 
     /* and send it to the next filter */
     avfilter_start_frame(link, avfilter_ref_buffer(pic, ~0));
-    avfilter_draw_slice (link, 0, pic->h, 1);
+    avfilter_draw_slice (link, 0, pic_props->h, 1);
     avfilter_end_frame  (link);
     avfilter_unref_buffer(pic);
 

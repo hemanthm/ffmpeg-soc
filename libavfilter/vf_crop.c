@@ -161,10 +161,12 @@ static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     CropContext *crop = link->dst->priv;
     AVFilterBufferRef *ref2 = avfilter_ref_buffer(picref, ~0);
+    AVFilterBufferRefVideoProps *ref_props;
     int i;
+    AVFILTER_GET_REF_VIDEO_PROPS(ref_props, ref2);
 
-    ref2->w        = crop->w;
-    ref2->h        = crop->h;
+    ref_props->w        = crop->w;
+    ref_props->h        = crop->h;
 
     ref2->data[0] += crop->y * ref2->linesize[0];
     ref2->data[0] += (crop->x * crop->bpp) >> 3;

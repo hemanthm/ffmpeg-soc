@@ -59,8 +59,10 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AspectContext *aspect = link->dst->priv;
+    AVFilterBufferRefVideoProps *pic_props;
+    AVFILTER_GET_REF_VIDEO_PROPS(pic_props, picref);
 
-    picref->pixel_aspect = aspect->aspect;
+    pic_props->pixel_aspect = aspect->aspect;
     avfilter_start_frame(link->dst->outputs[0], picref);
 }
 

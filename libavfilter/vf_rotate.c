@@ -114,6 +114,8 @@ static void end_frame(AVFilterLink *link)
     RotContext *rot = link->dst->priv;
     AVFilterBufferRef *in  = link->cur_buf;
     AVFilterBufferRef *out = link->dst->outputs[0]->out_buf;
+    AVFilterBufferRefVideoProps *in_props;
+    AVFILTER_GET_REF_VIDEO_PROPS(in_props, in);
     int i, j, plane;
 
     /* luma plane */
@@ -125,7 +127,7 @@ static void end_frame(AVFilterLink *link)
             int column = (i - rot->transy)*rot->cosx -
                 (j - rot->transx)*rot->sinx + 0.5;
 
-            if (line < 0 || line >= in->w || column < 0 || column >= in->h)
+            if (line < 0 || line >= in_props->w || column < 0 || column >= in_props->h)
                 *(out->data[0] +   i*out->linesize[0] + j) = rot->backcolor[0];
             else
                 *(out->data[0] +   i*out->linesize[0] + j) =
@@ -145,7 +147,7 @@ static void end_frame(AVFilterLink *link)
                 int column = (i2 - rot->transy)*rot->cosx -
                     (j2 - rot->transx)*rot->sinx + 0.5;
 
-                if (line < 0 || line >= in->w || column < 0 || column >= in->h) {
+                if (line < 0 || line >= in_props->w || column < 0 || column >= in_props->h) {
                     *(out->data[plane] +   i*out->linesize[plane] + j) =
                         rot->backcolor[plane];
                 } else {
@@ -166,16 +168,19 @@ static void end_frame(AVFilterLink *link)
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AVFilterLink *out = link->dst->outputs[0];
+    AVFilterBufferRefVideoProps *pic_props, *out_buf_props;
+    AVFILTER_GET_REF_VIDEO_PROPS(pic_props, picref);
+    AVFILTER_GET_REF_VIDEO_PROPS(out_buf_props, out->out_buf);
 
     out->out_buf      = avfilter_get_video_buffer(out, AV_PERM_WRITE, out->w, out->h);
     out->out_buf->pts = picref->pts;
     out->out_buf->pos = picref->pos;
 
-    if(picref->pixel_aspect.num == 0) {
-        out->out_buf->pixel_aspect = picref->pixel_aspect;
+    if(pic_props->pixel_aspect.num == 0) {
+        out_buf_props->pixel_aspect = pic_props->pixel_aspect;
     } else {
-        out->out_buf->pixel_aspect.num = picref->pixel_aspect.den;
-        out->out_buf->pixel_aspect.den = picref->pixel_aspect.num;
+        out_buf_props->pixel_aspect.num = pic_props->pixel_aspect.den;
+        out_buf_props->pixel_aspect.den = pic_props->pixel_aspect.num;
     }
 
     avfilter_start_frame(out, avfilter_ref_buffer(out->out_buf, ~0));

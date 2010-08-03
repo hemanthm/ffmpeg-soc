@@ -85,6 +85,8 @@ static void end_frame(AVFilterLink *link)
 static int request_frame(AVFilterLink *link)
 {
     FPSContext *fps = link->src->priv;
+    AVFilterBufferRefVideoProps *pic_props;
+    AVFILTER_GET_REF_VIDEO_PROPS(pic_props, fps->pic);
 
     if (fps->videoend)
         return -1;
@@ -96,7 +98,7 @@ static int request_frame(AVFilterLink *link)
 
     fps->has_frame=0;
     avfilter_start_frame(link, avfilter_ref_buffer(fps->pic, ~AV_PERM_WRITE));
-    avfilter_draw_slice (link, 0, fps->pic->h, 1);
+    avfilter_draw_slice (link, 0, pic_props->h, 1);
     avfilter_end_frame  (link);
 
     avfilter_unref_buffer(fps->pic);

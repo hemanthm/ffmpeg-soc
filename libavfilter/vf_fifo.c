@@ -76,6 +76,8 @@ static int request_frame(AVFilterLink *link)
 {
     BufferContext *buf = link->src->priv;
     BufPic *tmp;
+    AVFilterBufferRefVideoProps *pic_props;
+    AVFILTER_GET_REF_VIDEO_PROPS(pic_props, buf->root.next->pic);
 
     if(!buf->root.next)
         if(avfilter_request_frame(link->src->inputs[0]))
@@ -84,7 +86,7 @@ static int request_frame(AVFilterLink *link)
     /* by doing this, we give ownership of the reference to the next filter,
      * so we don't have to worry about dereferencing it ourselves. */
     avfilter_start_frame(link, buf->root.next->pic);
-    avfilter_draw_slice(link, 0, buf->root.next->pic->h, 1);
+    avfilter_draw_slice(link, 0, pic_props->h, 1);
     avfilter_end_frame(link);
 
     if(buf->last == buf->root.next)

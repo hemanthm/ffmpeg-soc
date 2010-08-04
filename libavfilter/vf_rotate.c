@@ -112,8 +112,8 @@ static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 static void end_frame(AVFilterLink *link)
 {
     RotContext *rot = link->dst->priv;
-    AVFilterPicRef *in  = link->cur_pic;
-    AVFilterPicRef *out = link->dst->outputs[0]->outpic;
+    AVFilterBufferRef *in  = link->cur_pic;
+    AVFilterBufferRef *out = link->dst->outputs[0]->outpic;
     int i, j, plane;
 
     /* luma plane */
@@ -163,7 +163,7 @@ static void end_frame(AVFilterLink *link)
     avfilter_unref_pic(out);
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AVFilterLink *out = link->dst->outputs[0];
 

@@ -67,8 +67,8 @@ static int config_props(AVFilterLink *link)
 static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     NegContext *neg = link->dst->priv;
-    AVFilterPicRef *in  = link->cur_pic;
-    AVFilterPicRef *out = link->dst->outputs[0]->outpic;
+    AVFilterBufferRef *in  = link->cur_pic;
+    AVFilterBufferRef *out = link->dst->outputs[0]->outpic;
     uint8_t *inrow, *outrow;
     int i, j, plane;
 

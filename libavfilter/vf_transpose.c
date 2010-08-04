@@ -67,9 +67,9 @@ static int config_props_output(AVFilterLink *link)
 static void end_frame(AVFilterLink *link)
 {
     TransContext *trans = link->dst->priv;
-    AVFilterPicRef *in  = link->cur_pic;
-    AVFilterPicRef *out = link->dst->outputs[0]->outpic;
-    AVFilterPicRef *pic = link->cur_pic;
+    AVFilterBufferRef *in  = link->cur_pic;
+    AVFilterBufferRef *out = link->dst->outputs[0]->outpic;
+    AVFilterBufferRef *pic = link->cur_pic;
     AVFilterLink *output = link->dst->outputs[0];
     int i, j, plane;
 
@@ -94,7 +94,7 @@ static void end_frame(AVFilterLink *link)
     avfilter_unref_pic(out);
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AVFilterLink *out = link->dst->outputs[0];
 

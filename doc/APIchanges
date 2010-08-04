@@ -23,6 +23,12 @@ API changes, most recent first:
   Add functions av_fill_image_linesizes() and
   av_fill_image_pointers(), declared in libavcore/imgutils.h.
 
+2010-08-01 - r24519 - lavfi 1.27.1 - rename AVFilterPicRef
+  Rename AVFilterPicRef->AVFilterBufferRef
+
+2010-08-01 - r24519 - lavfi 1.27.0 - move format field
+  Move the format field to AVFilterPicRef from AVFilterBuffer
+
 2010-07-27 - r24518 - lavcore 0.1.0 - parseutils.h
   Deprecate av_parse_video_frame_size() and av_parse_video_frame_rate()
   defined in libavcodec in favor of the newly added functions

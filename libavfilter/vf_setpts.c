@@ -90,16 +90,16 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
     return !setpts->expr;
 }
 
-static AVFilterPicRef *get_video_buffer(AVFilterLink *link, int perms,
+static AVFilterBufferRef *get_video_buffer(AVFilterLink *link, int perms,
                                         int w, int h)
 {
     return avfilter_get_video_buffer(link->dst->outputs[0], perms, w, h);
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     SetPTSContext *setpts = link->dst->priv;
-    AVFilterPicRef *ref2 = avfilter_ref_pic(picref, ~0);
+    AVFilterBufferRef *ref2 = avfilter_ref_pic(picref, ~0);
 
 
     if (setpts->const_values[POV_STARTPTS] == AV_NOPTS_VALUE)

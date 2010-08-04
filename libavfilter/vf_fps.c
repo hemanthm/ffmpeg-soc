@@ -26,7 +26,7 @@
 typedef struct {
     uint64_t timebase;
     uint64_t pts;
-    AVFilterPicRef *pic;
+    AVFilterBufferRef *pic;
     int videoend;
     int has_frame;
 } FPSContext;
@@ -54,7 +54,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     if(fps->pic) avfilter_unref_pic(fps->pic);
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     FPSContext *fps = link->dst->priv;
     if(fps->pic) avfilter_unref_pic(fps->pic);

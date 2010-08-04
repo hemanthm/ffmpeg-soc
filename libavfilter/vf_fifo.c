@@ -23,7 +23,7 @@
 
 typedef struct BufPic
 {
-    AVFilterPicRef *pic;
+    AVFilterBufferRef *pic;
     struct BufPic  *next;
 } BufPic;
 
@@ -53,7 +53,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     }
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     BufferContext *buf = link->dst->priv;
 

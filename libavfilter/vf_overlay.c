@@ -48,7 +48,7 @@ enum var_name {
 typedef struct {
     unsigned x, y;              //< position of subpicture
 
-    AVFilterPicRef *overlay;
+    AVFilterBufferRef *overlay;
 
     int bpp;                    //< bytes per pixel
     int hsub, vsub;             //< chroma subsampling
@@ -168,23 +168,23 @@ fail:
     return ret;
 }
 
-static AVFilterPicRef *get_video_buffer(AVFilterLink *link, int perms, int w, int h)
+static AVFilterBufferRef *get_video_buffer(AVFilterLink *link, int perms, int w, int h)
 {
-    AVFilterPicRef *picref = avfilter_get_video_buffer(link->dst->outputs[0],
+    AVFilterBufferRef *picref = avfilter_get_video_buffer(link->dst->outputs[0],
                                                        perms, w, h);
     return picref;
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
-    AVFilterPicRef *outpicref = avfilter_ref_pic(picref, ~0);
+    AVFilterBufferRef *outpicref = avfilter_ref_pic(picref, ~0);
 
     link->dst->outputs[0]->outpic = outpicref;
 
     avfilter_start_frame(link->dst->outputs[0], outpicref);
 }
 
-static void start_frame_overlay(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame_overlay(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AVFilterContext *ctx = link->dst;
     OverlayContext *over = ctx->priv;
@@ -193,7 +193,7 @@ static void start_frame_overlay(AVFilterLink *link, AVFilterPicRef *picref)
 }
 
 static void blend_slice(AVFilterContext *ctx,
-                        AVFilterPicRef *dst, AVFilterPicRef *src,
+                        AVFilterBufferRef *dst, AVFilterBufferRef *src,
                         int x, int y, int w, int h,
                         int slice_y, int slice_w, int slice_h)
 {
@@ -273,7 +273,7 @@ static void blend_slice(AVFilterContext *ctx,
 static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     AVFilterContext *ctx = link->dst;
-    AVFilterPicRef *pic = ctx->outputs[0]->outpic;
+    AVFilterBufferRef *pic = ctx->outputs[0]->outpic;
     OverlayContext *over = ctx->priv;
 
     if (!over->overlay) {// || over->overlay->pts < pic->pts) {

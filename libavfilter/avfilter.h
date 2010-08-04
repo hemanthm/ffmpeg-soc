@@ -68,7 +68,6 @@ typedef struct AVFilterBuffer
 {
     uint8_t *data[8];           ///< buffer data for each plane/channel
     int linesize[8];            ///< number of bytes per line
-    int format;                 ///< media format
 
     unsigned refcount;          ///< number of references to this buffer
 
@@ -104,6 +103,7 @@ typedef struct AVFilterPicRef
     int linesize[4];            ///< number of bytes per line
     int w;                      ///< image width
     int h;                      ///< image height
+    int format;                 ///< media format
 
     int64_t pts;                ///< presentation timestamp in units of 1/AV_TIME_BASE
     int64_t pos;                ///< byte position in stream, -1 if unknown

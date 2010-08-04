@@ -209,11 +209,11 @@ static void blend_slice(AVFilterContext *ctx,
     start_y = FFMAX(y, slice_y);
     height = end_y - start_y;
 
-    if (dst->pic->format == PIX_FMT_BGR24 || dst->pic->format == PIX_FMT_RGB24) {
+    if (dst->format == PIX_FMT_BGR24 || dst->format == PIX_FMT_RGB24) {
         uint8_t *dp = dst->data[0] + x * 3 + start_y * dst->linesize[0];
         uint8_t *sp = src->data[0];
-        int b = dst->pic->format == PIX_FMT_BGR24 ? 2 : 0;
-        int r = dst->pic->format == PIX_FMT_BGR24 ? 0 : 2;
+        int b = dst->format == PIX_FMT_BGR24 ? 2 : 0;
+        int r = dst->format == PIX_FMT_BGR24 ? 0 : 2;
         if (slice_y > y)
             sp += (slice_y - y) * src->linesize[0];
         for (i = 0; i < height; i++) {

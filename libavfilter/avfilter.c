@@ -45,10 +45,17 @@ const char *avfilter_license(void)
 #define link_dpad(link)     link->dst-> input_pads[link->dstpad]
 #define link_spad(link)     link->src->output_pads[link->srcpad]
 
+#define AVFILTER_COPY_VIDEO_PROPS(dst, src) {\
+    dst->props = av_malloc(sizeof(AVFilterBufferRefVideoProps));\
+    memcpy(dst->props, src->props, sizeof(AVFilterBufferRefVideoProps));\
+}
+
 AVFilterBufferRef *avfilter_ref_buffer(AVFilterBufferRef *ref, int pmask)
 {
     AVFilterBufferRef *ret = av_malloc(sizeof(AVFilterBufferRef));
     *ret = *ref;
+    ret->props = av_malloc(sizeof(AVFilterBufferRefVideoProps));
+    memcpy(ret->props, ref->props, sizeof(AVFilterBufferRefVideoProps));
     ret->perms &= pmask;
     ret->buf->refcount ++;
     return ret;
@@ -58,6 +65,7 @@ void avfilter_unref_buffer(AVFilterBufferRef *ref)
 {
     if(!(--ref->buf->refcount))
         ref->buf->free(ref->buf);
+    av_free(ref->props);
     av_free(ref);
 }
 
@@ -173,13 +181,15 @@ int avfilter_config_links(AVFilterContext *filter)
 
 void ff_dprintf_picref(void *ctx, AVFilterBufferRef *picref, int end)
 {
+    AVFilterBufferRefVideoProps *pic_props;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, picref);
     dprintf(ctx,
             "picref[%p data[%p, %p, %p, %p] linesize[%d, %d, %d, %d] pts:%"PRId64" pos:%"PRId64" a:%d/%d s:%dx%d]%s",
             picref,
             picref->data    [0], picref->data    [1], picref->data    [2], picref->data    [3],
             picref->linesize[0], picref->linesize[1], picref->linesize[2], picref->linesize[3],
             picref->pts, picref->pos,
-            picref->pixel_aspect.num, picref->pixel_aspect.den, picref->w, picref->h,
+            pic_props->pixel_aspect.num, pic_props->pixel_aspect.den, pic_props->w, pic_props->h,
             end ? "\n" : "");
 }
 
@@ -292,6 +302,7 @@ void avfilter_end_frame(AVFilterLink *link)
 
 void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
+    AVFilterBufferRefVideoProps *cur_buf_props;
     uint8_t *src[4], *dst[4];
     int i, j, vsub;
     void (*draw_slice)(AVFilterLink *, int, int, int);
@@ -311,10 +322,11 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
             } else
                 src[i] = dst[i] = NULL;
         }
+        AVFILTER_GET_BUFREF_VIDEO_PROPS(cur_buf_props, link->cur_buf);
 
         for(i = 0; i < 4; i ++) {
             int planew =
-                ff_get_plane_bytewidth(link->format, link->cur_buf->w, i);
+                ff_get_plane_bytewidth(link->format, cur_buf_props->w, i);
 
             if(!src[i]) continue;
 

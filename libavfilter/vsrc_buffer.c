@@ -106,6 +106,7 @@ static int request_frame(AVFilterLink *link)
 {
     BufferSourceContext *c = link->src->priv;
     AVFilterBufferRef *picref;
+    AVFilterBufferRefVideoProps *pic_props;
 
     if (!c->has_frame) {
         av_log(link->src, AV_LOG_ERROR,
@@ -118,14 +119,15 @@ static int request_frame(AVFilterLink *link)
     picref = avfilter_get_video_buffer(link, AV_PERM_WRITE | AV_PERM_PRESERVE |
                                        AV_PERM_REUSE2,
                                        link->w, link->h);
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, picref);
 
     av_picture_copy((AVPicture *)&picref->data, (AVPicture *)&c->frame,
                     picref->format, link->w, link->h);
 
-    picref->pts             = c->pts;
-    picref->pixel_aspect    = c->pixel_aspect;
-    picref->interlaced      = c->frame.interlaced_frame;
-    picref->top_field_first = c->frame.top_field_first;
+    picref->pts                = c->pts;
+    pic_props->pixel_aspect    = c->pixel_aspect;
+    pic_props->interlaced      = c->frame.interlaced_frame;
+    pic_props->top_field_first = c->frame.top_field_first;
     avfilter_start_frame(link, avfilter_ref_buffer(picref, ~0));
     avfilter_draw_slice(link, 0, link->h, 1);
     avfilter_end_frame(link);

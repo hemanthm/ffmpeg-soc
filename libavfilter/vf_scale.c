@@ -147,18 +147,21 @@ static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
     ScaleContext *scale = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFilterBufferRef *outpicref;
+    AVFilterBufferRefVideoProps *pic_props, *outpic_props;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, picref);
 
     scale->hsub = av_pix_fmt_descriptors[link->format].log2_chroma_w;
     scale->vsub = av_pix_fmt_descriptors[link->format].log2_chroma_h;
 
     outpicref = avfilter_get_video_buffer(outlink, AV_PERM_WRITE, outlink->w, outlink->h);
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(outpic_props, outpicref);
     avfilter_copy_bufref_props(outpicref, picref);
 
     outlink->out_buf = outpicref;
 
-    av_reduce(&outpicref->pixel_aspect.num, &outpicref->pixel_aspect.den,
-              (int64_t)picref->pixel_aspect.num * outlink->h * link->w,
-              (int64_t)picref->pixel_aspect.den * outlink->w * link->h,
+    av_reduce(&outpic_props->pixel_aspect.num, &outpic_props->pixel_aspect.den,
+              (int64_t)pic_props->pixel_aspect.num * outlink->h * link->w,
+              (int64_t)pic_props->pixel_aspect.den * outlink->w * link->h,
               INT_MAX);
 
     scale->slice_y = 0;

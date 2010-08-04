@@ -365,6 +365,7 @@ static int get_filtered_video_pic(AVFilterContext *ctx,
                                   uint64_t *pts)
 {
     AVFilterBufferRef *pic;
+    AVFilterBufferRefVideoProps *pic_props;
 
     if(avfilter_request_frame(ctx->inputs[0]))
         return -1;
@@ -372,13 +373,14 @@ static int get_filtered_video_pic(AVFilterContext *ctx,
         return -1;
     *picref = pic;
     ctx->inputs[0]->cur_buf = NULL;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, pic);
 
     *pts          = pic->pts;
 
     memcpy(pic2->data,     pic->data,     sizeof(pic->data));
     memcpy(pic2->linesize, pic->linesize, sizeof(pic->linesize));
-    pic2->interlaced_frame = pic->interlaced;
-    pic2->top_field_first  = pic->top_field_first;
+    pic2->interlaced_frame = pic_props->interlaced;
+    pic2->top_field_first  = pic_props->top_field_first;
 
     return 1;
 }
@@ -1680,8 +1682,11 @@ static int output_packet(AVInputStream *ist, int ist_index,
         if (start_time == 0 || ist->pts >= start_time)
 #if CONFIG_AVFILTER
         while (frame_available) {
-            if (ist->st->codec->codec_type == AVMEDIA_TYPE_VIDEO && ist->out_video_filter)
+            AVFilterBufferRefVideoProps *pic_props = NULL;
+            if (ist->st->codec->codec_type == AVMEDIA_TYPE_VIDEO && ist->out_video_filter) {
                 get_filtered_video_pic(ist->out_video_filter, &ist->picref, &picture, &ist->pts);
+                AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, ist->picref);
+            }
 #endif
             for(i=0;i<nb_ostreams;i++) {
                 int frame_size;
@@ -1701,7 +1706,8 @@ static int output_packet(AVInputStream *ist, int ist_index,
                             break;
                         case AVMEDIA_TYPE_VIDEO:
 #if CONFIG_AVFILTER
-                            ost->st->codec->sample_aspect_ratio = ist->picref->pixel_aspect;
+                            if (pic_props)
+                                ost->st->codec->sample_aspect_ratio = pic_props->pixel_aspect;
 #endif
                             do_video_out(os, ost, ist, &picture, &frame_size);
                             if (vstats_filename && frame_size)

@@ -427,9 +427,11 @@ static int color_request_frame(AVFilterLink *link)
 {
     ColorContext *color = link->src->priv;
     AVFilterBufferRef *picref = avfilter_get_video_buffer(link, AV_PERM_WRITE, color->w, color->h);
-    picref->pixel_aspect = (AVRational) {1, 1};
-    picref->pts          = av_rescale_q(color->pts++, color->time_base, AV_TIME_BASE_Q);
-    picref->pos          = 0;
+    AVFilterBufferRefVideoProps *pic_props;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, picref);
+    pic_props->pixel_aspect = (AVRational) {1, 1};
+    picref->pts             = av_rescale_q(color->pts++, color->time_base, AV_TIME_BASE_Q);
+    picref->pos             = 0;
 
     avfilter_start_frame(link, avfilter_ref_buffer(picref, ~0));
     draw_rectangle(picref,

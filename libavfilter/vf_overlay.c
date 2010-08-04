@@ -274,7 +274,9 @@ static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     AVFilterContext *ctx = link->dst;
     AVFilterBufferRef *pic = ctx->outputs[0]->outpic;
+    AVFilterBufferRefVideoProps *pic_props, *over_props;
     OverlayContext *over = ctx->priv;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, pic);
 
     if (!over->overlay) {// || over->overlay->pts < pic->pts) {
         if (over->overlay) {
@@ -288,10 +290,11 @@ static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
             goto out;
         }
     }
-    if (!(over->x >= pic->w || over->y >= pic->h ||
-          y+h < over->y || y >= over->y+over->overlay->h)) {
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(over_props, over->overlay);
+    if (!(over->x >= pic_props->w || over->y >= pic_props->h ||
+          y+h < over->y || y >= over->y+over_props->h)) {
         blend_slice(ctx, pic, over->overlay, over->x, over->y,
-                    over->overlay->w, over->overlay->h, y, pic->w, h);
+                    over_props->w, over_props->h, y, pic_props->w, h);
     }
  out:
     avfilter_draw_slice(ctx->outputs[0], y, h, slice_dir);

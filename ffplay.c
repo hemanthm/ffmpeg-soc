@@ -684,6 +684,9 @@ static void free_subpicture(SubPicture *sp)
 static void video_image_display(VideoState *is)
 {
     VideoPicture *vp;
+#if CONFIG_AVFILTER
+    AVFilterBufferRefVideoProps *pic_props;
+#endif
     SubPicture *sp;
     AVPicture pict;
     float aspect_ratio;
@@ -694,10 +697,11 @@ static void video_image_display(VideoState *is)
     vp = &is->pictq[is->pictq_rindex];
     if (vp->bmp) {
 #if CONFIG_AVFILTER
-         if (vp->picref->pixel_aspect.num == 0)
+         AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, vp->picref);
+         if (pic_props->pixel_aspect.num == 0)
              aspect_ratio = 0;
          else
-             aspect_ratio = av_q2d(vp->picref->pixel_aspect);
+             aspect_ratio = av_q2d(pic_props->pixel_aspect);
 #else
 
         /* XXX: use variable in the frame */
@@ -1561,6 +1565,7 @@ static int input_get_buffer(AVCodecContext *codec, AVFrame *pic)
 {
     AVFilterContext *ctx = codec->opaque;
     AVFilterBufferRef  *ref;
+    AVFilterBufferRefVideoProps *ref_props;
     int perms = AV_PERM_WRITE;
     int i, w, h, stride[4];
     unsigned edge;
@@ -1582,8 +1587,9 @@ static int input_get_buffer(AVCodecContext *codec, AVFrame *pic)
     if(!(ref = avfilter_get_video_buffer(ctx->outputs[0], perms, w, h)))
         return -1;
 
-    ref->w = codec->width;
-    ref->h = codec->height;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(ref_props, ref);
+    ref_props->w = codec->width;
+    ref_props->h = codec->height;
     for(i = 0; i < 4; i ++) {
         unsigned hshift = (i == 1 || i == 2) ? av_pix_fmt_descriptors[ref->format].log2_chroma_w : 0;
         unsigned vshift = (i == 1 || i == 2) ? av_pix_fmt_descriptors[ref->format].log2_chroma_h : 0;
@@ -1610,13 +1616,15 @@ static void input_release_buffer(AVCodecContext *codec, AVFrame *pic)
 static int input_reget_buffer(AVCodecContext *codec, AVFrame *pic)
 {
     AVFilterBufferRef *ref = pic->opaque;
+    AVFilterBufferRefVideoProps *ref_props;
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(ref_props, ref);
 
     if (pic->data[0] == NULL) {
         pic->buffer_hints |= FF_BUFFER_HINTS_READABLE;
         return codec->get_buffer(codec, pic);
     }
 
-    if ((codec->width != ref->w) || (codec->height != ref->h) ||
+    if ((codec->width != ref_props->w) || (codec->height != ref_props->h) ||
         (codec->pix_fmt != ref->format)) {
         av_log(codec, AV_LOG_ERROR, "Picture properties changed.\n");
         return -1;
@@ -1657,6 +1665,7 @@ static int input_request_frame(AVFilterLink *link)
 {
     FilterPriv *priv = link->src->priv;
     AVFilterBufferRef *picref;
+    AVFilterBufferRefVideoProps *pic_props;
     int64_t pts = 0;
     AVPacket pkt;
     int ret;
@@ -1674,10 +1683,11 @@ static int input_request_frame(AVFilterLink *link)
                         picref->format, link->w, link->h);
     }
     av_free_packet(&pkt);
+    AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, picref);
 
     picref->pts = pts;
     picref->pos = pkt.pos;
-    picref->pixel_aspect = priv->is->video_st->codec->sample_aspect_ratio;
+    pic_props->pixel_aspect = priv->is->video_st->codec->sample_aspect_ratio;
     avfilter_start_frame(link, picref);
     avfilter_draw_slice(link, 0, link->h, 1);
     avfilter_end_frame(link);

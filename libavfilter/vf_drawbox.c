@@ -121,7 +121,7 @@ static void end_frame(AVFilterLink *link)
 {
     BoxContext *context = link->dst->priv;
     AVFilterLink *output = link->dst->outputs[0];
-    AVFilterBufferRef *pic = link->cur_pic;
+    AVFilterBufferRef *pic = link->cur_buf;
 
     draw_box(pic,context,context->color);
 

@@ -34,7 +34,7 @@ static void end_frame(AVFilterLink *link)
     avfilter_end_frame(link->dst->outputs[0]);
     avfilter_end_frame(link->dst->outputs[1]);
 
-    avfilter_unref_buffer(link->cur_pic);
+    avfilter_unref_buffer(link->cur_buf);
 }
 
 static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)

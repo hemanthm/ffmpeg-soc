@@ -112,8 +112,8 @@ static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 static void end_frame(AVFilterLink *link)
 {
     RotContext *rot = link->dst->priv;
-    AVFilterBufferRef *in  = link->cur_pic;
-    AVFilterBufferRef *out = link->dst->outputs[0]->outpic;
+    AVFilterBufferRef *in  = link->cur_buf;
+    AVFilterBufferRef *out = link->dst->outputs[0]->out_buf;
     int i, j, plane;
 
     /* luma plane */
@@ -167,18 +167,18 @@ static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AVFilterLink *out = link->dst->outputs[0];
 
-    out->outpic      = avfilter_get_video_buffer(out, AV_PERM_WRITE, out->w, out->h);
-    out->outpic->pts = picref->pts;
-    out->outpic->pos = picref->pos;
+    out->out_buf      = avfilter_get_video_buffer(out, AV_PERM_WRITE, out->w, out->h);
+    out->out_buf->pts = picref->pts;
+    out->out_buf->pos = picref->pos;
 
     if(picref->pixel_aspect.num == 0) {
-        out->outpic->pixel_aspect = picref->pixel_aspect;
+        out->out_buf->pixel_aspect = picref->pixel_aspect;
     } else {
-        out->outpic->pixel_aspect.num = picref->pixel_aspect.den;
-        out->outpic->pixel_aspect.den = picref->pixel_aspect.num;
+        out->out_buf->pixel_aspect.num = picref->pixel_aspect.den;
+        out->out_buf->pixel_aspect.den = picref->pixel_aspect.num;
     }
 
-    avfilter_start_frame(out, avfilter_ref_buffer(out->outpic, ~0));
+    avfilter_start_frame(out, avfilter_ref_buffer(out->out_buf, ~0));
 }
 
 AVFilter avfilter_vf_rotate =

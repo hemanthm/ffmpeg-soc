@@ -74,7 +74,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     OverlayContext *over = ctx->priv;
 
     if (over->overlay)
-        avfilter_unref_pic(over->overlay);
+        avfilter_unref_buffer(over->overlay);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -177,7 +177,7 @@ static AVFilterBufferRef *get_video_buffer(AVFilterLink *link, int perms, int w,
 
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
-    AVFilterBufferRef *outpicref = avfilter_ref_pic(picref, ~0);
+    AVFilterBufferRef *outpicref = avfilter_ref_buffer(picref, ~0);
 
     link->dst->outputs[0]->outpic = outpicref;
 
@@ -278,7 +278,7 @@ static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 
     if (!over->overlay) {// || over->overlay->pts < pic->pts) {
         if (over->overlay) {
-            avfilter_unref_pic(over->overlay);
+            avfilter_unref_buffer(over->overlay);
             over->overlay = NULL;
         }
         if (avfilter_request_frame(ctx->inputs[1]))
@@ -300,7 +300,7 @@ static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 static void end_frame(AVFilterLink *link)
 {
     avfilter_end_frame(link->dst->outputs[0]);
-    avfilter_unref_pic(link->cur_pic);
+    avfilter_unref_buffer(link->cur_pic);
 }
 
 static void null_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)

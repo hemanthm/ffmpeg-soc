@@ -48,7 +48,7 @@ static av_cold void uninit(AVFilterContext *ctx)
 
     for(pic = buf->root.next; pic; pic = tmp) {
         tmp = pic->next;
-        avfilter_unref_pic(pic->pic);
+        avfilter_unref_buffer(pic->pic);
         av_free(pic);
     }
 }

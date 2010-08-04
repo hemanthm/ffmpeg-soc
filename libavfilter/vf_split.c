@@ -24,9 +24,9 @@
 static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     avfilter_start_frame(link->dst->outputs[0],
-                         avfilter_ref_pic(picref, ~AV_PERM_WRITE));
+                         avfilter_ref_buffer(picref, ~AV_PERM_WRITE));
     avfilter_start_frame(link->dst->outputs[1],
-                         avfilter_ref_pic(picref, ~AV_PERM_WRITE));
+                         avfilter_ref_buffer(picref, ~AV_PERM_WRITE));
 }
 
 static void end_frame(AVFilterLink *link)
@@ -34,7 +34,7 @@ static void end_frame(AVFilterLink *link)
     avfilter_end_frame(link->dst->outputs[0]);
     avfilter_end_frame(link->dst->outputs[1]);
 
-    avfilter_unref_pic(link->cur_pic);
+    avfilter_unref_buffer(link->cur_pic);
 }
 
 static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)

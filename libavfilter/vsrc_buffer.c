@@ -121,8 +121,8 @@ static int request_frame(AVFilterLink *link)
                                        link->w, link->h);
     AVFILTER_GET_BUFREF_VIDEO_PROPS(pic_props, picref);
 
-    av_picture_copy((AVPicture *)&picref->data, (AVPicture *)&c->frame,
-                    picref->format, link->w, link->h);
+    av_picture_data_copy(picref->data, picref->linesize,
+                         (AVPicture *)&c->frame, picref->format, link->w, link->h);
 
     picref->pts                = c->pts;
     pic_props->pixel_aspect    = c->pixel_aspect;

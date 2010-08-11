@@ -24,8 +24,6 @@
 #include "internal.h"
 #include "libavutil/random_seed.h"
 
-#include <unistd.h>
-
 #include "rtpenc.h"
 
 //#define DEBUG
@@ -55,6 +53,8 @@ static int is_supported(enum CodecID id)
     case CODEC_ID_MPEG2TS:
     case CODEC_ID_AMR_NB:
     case CODEC_ID_AMR_WB:
+    case CODEC_ID_VORBIS:
+    case CODEC_ID_THEORA:
         return 1;
     default:
         return 0;
@@ -131,6 +131,19 @@ static int rtp_write_header(AVFormatContext *s1)
         s->max_payload_size = n * TS_PACKET_SIZE;
         s->buf_ptr = s->buf;
         break;
+    case CODEC_ID_H264:
+        /* check for H.264 MP4 syntax */
+        if (st->codec->extradata_size > 4 && st->codec->extradata[0] == 1) {
+            s->nal_length_size = (st->codec->extradata[4] & 0x03) + 1;
+        }
+        break;
+    case CODEC_ID_VORBIS:
+    case CODEC_ID_THEORA:
+        if (!s->max_frames_per_packet) s->max_frames_per_packet = 15;
+        s->max_frames_per_packet = av_clip(s->max_frames_per_packet, 1, 15);
+        s->max_payload_size -= 6; // ident+frag+tdt/vdt+pkt_num+pkt_length
+        s->num_frames = 0;
+        goto defaultcase;
     case CODEC_ID_AMR_NB:
     case CODEC_ID_AMR_WB:
         if (!s->max_frames_per_packet)
@@ -151,6 +164,7 @@ static int rtp_write_header(AVFormatContext *s1)
     case CODEC_ID_AAC:
         s->num_frames = 0;
     default:
+defaultcase:
         if (st->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
             av_set_pts_info(st, 32, 1, st->codec->sample_rate);
         }
@@ -388,6 +402,10 @@ static int rtp_write_packet(AVFormatContext *s1, AVPacket *pkt)
     case CODEC_ID_H263:
     case CODEC_ID_H263P:
         ff_rtp_send_h263(s1, pkt->data, size);
+        break;
+    case CODEC_ID_VORBIS:
+    case CODEC_ID_THEORA:
+        ff_rtp_send_xiph(s1, pkt->data, size);
         break;
     default:
         /* better than nothing : send the codec raw data */

@@ -83,9 +83,9 @@ static void unsharpen(uint8_t *dst, uint8_t *src, int dst_stride, int src_stride
     for (y = 0; y < 2 * fp->steps_y; y++)
         memset(sc[y], 0, sizeof(sc[y][0]) * (width + 2 * fp->steps_x));
 
-    for (y =- fp->steps_y; y < height + fp->steps_y; y++) {
+    for (y = -fp->steps_y; y < height + fp->steps_y; y++) {
         memset(sr, 0, sizeof(sr[0]) * (2 * fp->steps_x - 1));
-        for (x =- fp->steps_x; x < width + fp->steps_x; x++) {
+        for (x = -fp->steps_x; x < width + fp->steps_x; x++) {
             tmp1 = x <= 0 ? src[0] : x >= width ? src[width-1] : src[x];
             for (z = 0; z < fp->steps_x * 2; z += 2) {
                 tmp2 = sr[z + 0] + tmp1; sr[z + 0] = tmp1;
@@ -195,17 +195,17 @@ static av_cold void uninit(AVFilterContext *ctx)
 static void end_frame(AVFilterLink *link)
 {
     UnsharpContext *unsharp = link->dst->priv;
-    AVFilterPicRef *in  = link->cur_pic;
-    AVFilterPicRef *out = link->dst->outputs[0]->outpic;
+    AVFilterBufferRef *in  = link->cur_buf;
+    AVFilterBufferRef *out = link->dst->outputs[0]->out_buf;
 
     unsharpen(out->data[0], in->data[0], out->linesize[0], in->linesize[0], link->w,            link->h,             &unsharp->luma);
     unsharpen(out->data[1], in->data[1], out->linesize[1], in->linesize[1], CHROMA_WIDTH(link), CHROMA_HEIGHT(link), &unsharp->chroma);
     unsharpen(out->data[2], in->data[2], out->linesize[2], in->linesize[2], CHROMA_WIDTH(link), CHROMA_HEIGHT(link), &unsharp->chroma);
 
-    avfilter_unref_pic(in);
+    avfilter_unref_buffer(in);
     avfilter_draw_slice(link->dst->outputs[0], 0, link->h, 1);
     avfilter_end_frame(link->dst->outputs[0]);
-    avfilter_unref_pic(out);
+    avfilter_unref_buffer(out);
 }
 
 static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)

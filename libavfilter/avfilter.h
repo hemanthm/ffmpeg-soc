@@ -114,8 +114,8 @@ typedef struct AVFilterBufferRefVideoProps
 typedef struct AVFilterBufferRef
 {
     AVFilterBuffer *buf;                ///< the buffer that this is a reference to
-    uint8_t *data[4];                   ///< picture data for each plane
-    int linesize[4];                    ///< number of bytes per line
+    uint8_t *data[8];                   ///< picture data for each plane
+    int linesize[8];                    ///< number of bytes per line
     int format;                         ///< media format
 
     int64_t pts;                        ///< presentation timestamp in units of 1/AV_TIME_BASE

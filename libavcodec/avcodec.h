@@ -3937,7 +3937,13 @@ void *av_fast_realloc(void *ptr, unsigned int *size, unsigned int min_size);
 void av_fast_malloc(void *ptr, unsigned int *size, unsigned int min_size);
 
 /**
- * Copy image 'src' to 'dst'.
+ * Copy image data in 'src' to 'dst_data' adapting it to 'dst_linesize'.
+ */
+void av_picture_data_copy(uint8_t *dst_data[4], int dst_linesize[4], const AVPicture *src,
+                          enum PixelFormat pix_fmt, int width, int height);
+
+/**
+ * Copy image 'src' to 'dst'. Wraps av_picture_data_copy above.
  */
 void av_picture_copy(AVPicture *dst, const AVPicture *src,
                      enum PixelFormat pix_fmt, int width, int height);

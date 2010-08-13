@@ -684,8 +684,6 @@ static void free_subpicture(SubPicture *sp)
 static void video_image_display(VideoState *is)
 {
     VideoPicture *vp;
-#if CONFIG_AVFILTER
-#endif
     SubPicture *sp;
     AVPicture pict;
     float aspect_ratio;
@@ -1672,7 +1670,8 @@ static int input_request_frame(AVFilterLink *link)
         picref = avfilter_ref_buffer(priv->frame->opaque, ~0);
     } else {
         picref = avfilter_get_video_buffer(link, AV_PERM_WRITE, link->w, link->h);
-        av_picture_data_copy(picref->data, picref->linesize, (AVPicture *)priv->frame,
+        av_picture_data_copy(picref->data, picref->linesize,
+                             priv->frame->data, priv->frame->linesize,
                              picref->format, link->w, link->h);
     }
     av_free_packet(&pkt);
@@ -1792,8 +1791,8 @@ static int video_thread(void *arg)
     snprintf(sws_flags_str, sizeof(sws_flags_str), "flags=%d", sws_flags);
     graph->scale_sws_opts = av_strdup(sws_flags_str);
 
-    if(!(filt_src = avfilter_open(&input_filter,  "src")))   goto the_end;
-    if(!(filt_out = avfilter_open(&output_filter, "out")))   goto the_end;
+    if (avfilter_open(&filt_src, &input_filter,  "src") < 0) goto the_end;
+    if (avfilter_open(&filt_out, &output_filter, "out") < 0) goto the_end;
 
     if(avfilter_init_filter(filt_src, NULL, is))             goto the_end;
     if(avfilter_init_filter(filt_out, NULL, frame))          goto the_end;

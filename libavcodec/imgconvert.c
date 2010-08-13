@@ -794,58 +794,15 @@ void ff_img_copy_plane(uint8_t *dst, int dst_wrap,
     }
 }
 
+#if LIBAVCODEC_VERSION_MAJOR < 53
 int ff_get_plane_bytewidth(enum PixelFormat pix_fmt, int width, int plane)
 {
-    int bits;
-    const PixFmtInfo *pf = &pix_fmt_info[pix_fmt];
-    const AVPixFmtDescriptor *desc = &av_pix_fmt_descriptors[pix_fmt];
-
-    pf = &pix_fmt_info[pix_fmt];
-    switch(pf->pixel_type) {
-    case FF_PIXEL_PACKED:
-        switch(pix_fmt) {
-        case PIX_FMT_YUYV422:
-        case PIX_FMT_UYVY422:
-        case PIX_FMT_RGB565BE:
-        case PIX_FMT_RGB565LE:
-        case PIX_FMT_RGB555BE:
-        case PIX_FMT_RGB555LE:
-        case PIX_FMT_RGB444BE:
-        case PIX_FMT_RGB444LE:
-        case PIX_FMT_BGR565BE:
-        case PIX_FMT_BGR565LE:
-        case PIX_FMT_BGR555BE:
-        case PIX_FMT_BGR555LE:
-        case PIX_FMT_BGR444BE:
-        case PIX_FMT_BGR444LE:
-            bits = 16;
-            break;
-        case PIX_FMT_UYYVYY411:
-            bits = 12;
-            break;
-        default:
-            bits = pf->depth * pf->nb_channels;
-            break;
-        }
-        return (width * bits + 7) >> 3;
-        break;
-    case FF_PIXEL_PLANAR:
-            if ((pix_fmt != PIX_FMT_NV12 && pix_fmt != PIX_FMT_NV21) &&
-                (plane == 1 || plane == 2))
-                width= -((-width)>>desc->log2_chroma_w);
-
-            return (width * pf->depth + 7) >> 3;
-        break;
-    case FF_PIXEL_PALETTE:
-        if (plane == 0)
-            return width;
-        break;
-    }
-
-    return -1;
+    return av_get_image_linesize(pix_fmt, width, plane);
 }
+#endif
 
-void av_picture_data_copy(uint8_t *dst_data[4], int dst_linesize[4], const AVPicture *src,
+void av_picture_data_copy(uint8_t *dst_data[4], int dst_linesize[4],
+                          uint8_t *src_data[4], int src_linesize[4],
                           enum PixelFormat pix_fmt, int width, int height)
 {
     int i;
@@ -857,22 +814,22 @@ void av_picture_data_copy(uint8_t *dst_data[4], int dst_linesize[4], const AVPic
     case FF_PIXEL_PLANAR:
         for(i = 0; i < pf->nb_channels; i++) {
             int h;
-            int bwidth = ff_get_plane_bytewidth(pix_fmt, width, i);
+            int bwidth = av_get_image_linesize(pix_fmt, width, i);
             h = height;
             if (i == 1 || i == 2) {
                 h= -((-height)>>desc->log2_chroma_h);
             }
             ff_img_copy_plane(dst_data[i], dst_linesize[i],
-                           src->data[i], src->linesize[i],
-                           bwidth, h);
+                              src_data[i], src_linesize[i],
+                              bwidth, h);
         }
         break;
     case FF_PIXEL_PALETTE:
         ff_img_copy_plane(dst_data[0], dst_linesize[0],
-                       src->data[0], src->linesize[0],
-                       width, height);
+                          src_data[0], src_linesize[0],
+                          width, height);
         /* copy the palette */
-        memcpy(dst_data[1], src->data[1], 4*256);
+        memcpy(dst_data[1], src_data[1], 4*256);
         break;
     }
 }
@@ -880,7 +837,8 @@ void av_picture_data_copy(uint8_t *dst_data[4], int dst_linesize[4], const AVPic
 void av_picture_copy(AVPicture *dst, const AVPicture *src,
                      enum PixelFormat pix_fmt, int width, int height)
 {
-    av_picture_data_copy(dst->data, dst->linesize, src, pix_fmt, width, height);
+    av_picture_data_copy(dst->data, dst->linesize, src->data,
+                         src->linesize, pix_fmt, width, height);
 }
 
 /* 2x2 -> 1x1 */

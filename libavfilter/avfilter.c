@@ -21,8 +21,8 @@
 
 /* #define DEBUG */
 
-#include "libavcodec/imgconvert.h"
 #include "libavutil/pixdesc.h"
+#include "libavcore/imgutils.h"
 #include "avfilter.h"
 #include "internal.h"
 
@@ -49,7 +49,7 @@ AVFilterBufferRef *avfilter_ref_buffer(AVFilterBufferRef *ref, int pmask)
 {
     AVFilterBufferRef *ret = av_malloc(sizeof(AVFilterBufferRef));
     *ret = *ref;
-    if(ref->type == AVMEDIA_TYPE_VIDEO) {
+    if (ref->type == AVMEDIA_TYPE_VIDEO) {
         ret->video = av_malloc(sizeof(AVFilterBufferRefVideoProps));
         *ret->video = *ref->video;
     }
@@ -322,7 +322,7 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 
         for(i = 0; i < 4; i ++) {
             int planew =
-                ff_get_plane_bytewidth(link->format, link->cur_buf->video->w, i);
+                av_get_image_linesize(link->format, link->cur_buf->video->w, i);
 
             if(!src[i]) continue;
 
@@ -397,12 +397,13 @@ static const AVClass avfilter_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVFilterContext *avfilter_open(AVFilter *filter, const char *inst_name)
+int avfilter_open(AVFilterContext **filter_ctx, AVFilter *filter, const char *inst_name)
 {
     AVFilterContext *ret;
+    *filter_ctx = NULL;
 
     if (!filter)
-        return 0;
+        return AVERROR(EINVAL);
 
     ret = av_mallocz(sizeof(AVFilterContext));
 
@@ -425,7 +426,8 @@ AVFilterContext *avfilter_open(AVFilter *filter, const char *inst_name)
         ret->outputs      = av_mallocz(sizeof(AVFilterLink*) * ret->output_count);
     }
 
-    return ret;
+    *filter_ctx = ret;
+    return 0;
 }
 
 void avfilter_destroy(AVFilterContext *filter)

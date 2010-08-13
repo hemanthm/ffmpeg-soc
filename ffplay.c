@@ -106,6 +106,7 @@ typedef struct VideoPicture {
 
 #if CONFIG_AVFILTER
     AVFilterBufferRef *picref;
+    AVFilterBufferRef *samplesref;
 #endif
 } VideoPicture;
 
@@ -211,6 +212,8 @@ typedef struct VideoState {
 
 #if CONFIG_AVFILTER
     AVFilterContext *out_video_filter;          ///<the last filter in the video chain
+    AVFilterContext *out_audio_filter;          ///<the last filter in the audio chain
+    AVFilterGraph *agraph;
 #endif
 
     float skip_frames;
@@ -220,6 +223,7 @@ typedef struct VideoState {
 
 static void show_help(void);
 static int audio_write_get_buf_size(VideoState *is);
+static int audio_decode_frame(VideoState *is, double *pts_ptr);
 
 /* options specified by the user */
 static AVInputFormat *file_iformat;
@@ -269,6 +273,7 @@ static int framedrop=1;
 static int rdftspeed=20;
 #if CONFIG_AVFILTER
 static char *vfilters = NULL;
+static char *afilters = NULL;
 #endif
 
 /* current context */
@@ -1773,6 +1778,141 @@ static AVFilter output_filter =
                                   { .name = NULL }},
     .outputs   = (AVFilterPad[]) {{ .name = NULL }},
 };
+
+typedef struct {
+    VideoState *is;
+} AudioFilterPriv;
+
+static int input_audio_init(AVFilterContext *ctx, const char *args, void *opaque)
+{
+    AudioFilterPriv *priv = ctx->priv;
+
+    if (!opaque) return AVERROR(EINVAL);
+
+    priv->is = opaque;
+
+    return 0;
+}
+
+static void input_audio_uninit(AVFilterContext *ctx)
+{
+}
+
+static int input_request_audio_frame(AVFilterLink *link)
+{
+    AudioFilterPriv *priv = link->src->priv;
+    AVFilterBufferRef *samplesref;
+    AVCodecContext *avctx;
+    double pts = 0;
+    int buf_size = 0;
+
+    buf_size = audio_decode_frame(priv->is, &pts);
+    avctx = priv->is->audio_st->codec;
+    if (buf_size <= 0)
+        return AVERROR(EINVAL);
+
+    /* FIXME Currently audio streams seem to have no info on planar/packed.
+     * Assuming packed here and passing 0 as last attribute to get_audio_buffer.
+     */
+    if (!avctx->channel_layout) {
+        avctx->channel_layout = avcodec_guess_channel_layout(avctx->channels, 0, NULL);
+    }
+
+    samplesref = avfilter_get_audio_buffer(link, AV_PERM_WRITE, avctx->sample_fmt, 
+                                           buf_size, avctx->channel_layout, 0);
+    memcpy(samplesref->data[0], priv->is->audio_buf, buf_size);
+
+    samplesref->pts         = (int64_t) pts;
+    samplesref->audio->sample_rate = (int64_t) avctx->sample_rate;
+    avfilter_filter_samples(link, samplesref);
+
+    return 0;
+}
+
+static int input_query_audio_formats(AVFilterContext *ctx)
+{
+    AudioFilterPriv *priv = ctx->priv;
+    enum SampleFormat sample_fmts[] = {
+        priv->is->audio_st->codec->sample_fmt, SAMPLE_FMT_NONE
+    };
+
+    avfilter_set_common_formats(ctx, avfilter_make_format_list(sample_fmts));
+    return 0;
+}
+
+static int input_config_audio_props(AVFilterLink *link)
+{
+    FilterPriv *priv  = link->src->priv;
+    AVCodecContext *avctx = priv->is->audio_st->codec;
+
+    link->channel_layout = avctx->channel_layout;
+    return 0;
+}
+
+static AVFilter input_audio_filter =
+{
+    .name      = "ffplay_audio_input",
+
+    .priv_size = sizeof(AudioFilterPriv),
+
+    .init      = input_audio_init,
+    .uninit    = input_audio_uninit,
+
+    .query_formats = input_query_audio_formats,
+
+    .inputs    = (AVFilterPad[]) {{ .name = NULL }},
+    .outputs   = (AVFilterPad[]) {{ .name = "default",
+                                    .type = AVMEDIA_TYPE_AUDIO,
+                                    .request_frame = input_request_audio_frame,
+                                    .config_props  = input_config_audio_props, },
+                                  { .name = NULL }},
+};
+
+static void output_filter_samples(AVFilterLink *link, AVFilterBufferRef *samplesref)
+{
+}
+
+static int output_query_audio_formats(AVFilterContext *ctx)
+{
+    enum SampleFormat sample_fmts[] = { SAMPLE_FMT_S16, SAMPLE_FMT_NONE };
+
+    avfilter_set_common_formats(ctx, avfilter_make_format_list(sample_fmts));
+    return 0;
+}
+
+static int get_filtered_audio_samples(AVFilterContext *ctx, VideoState *is, double *pts)
+{
+    AVFilterBufferRef *samplesref;
+    int ret, size;
+
+    if ((ret = avfilter_request_frame(ctx->inputs[0])))
+        return ret;
+    if (!(samplesref = ctx->inputs[0]->cur_buf))
+        return AVERROR(EINVAL);
+    ctx->inputs[0]->cur_buf = NULL;
+    size = samplesref->audio->size;
+
+    *pts          = samplesref->pts;
+
+    memcpy(is->audio_buf, samplesref->data[0], size);
+    avfilter_unref_buffer(samplesref);
+
+    return size;
+}
+
+static AVFilter output_audio_filter =
+{
+    .name      = "ffplay_audio_output",
+
+    .query_formats = output_query_audio_formats,
+
+    .inputs    = (AVFilterPad[]) {{ .name           = "default",
+                                    .type           = AVMEDIA_TYPE_AUDIO,
+                                    .filter_samples = output_filter_samples,
+                                    .min_perms      = AV_PERM_READ, },
+                                  { .name = NULL }},
+    .outputs   = (AVFilterPad[]) {{ .name = NULL }},
+};
 #endif  /* CONFIG_AVFILTER */
 
 static int video_thread(void *arg)
@@ -2164,7 +2304,11 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
 
     while (len > 0) {
         if (is->audio_buf_index >= is->audio_buf_size) {
+#if CONFIG_AVFILTER
+           audio_size = get_filtered_audio_samples(is->out_audio_filter, is, &pts);
+#else
            audio_size = audio_decode_frame(is, &pts);
+#endif
            if (audio_size < 0) {
                 /* if error, just output silence */
                is->audio_buf = is->audio_buf1;
@@ -2196,6 +2340,10 @@ static int stream_component_open(VideoState *is, int stream_index)
     AVCodecContext *avctx;
     AVCodec *codec;
     SDL_AudioSpec wanted_spec, spec;
+#if CONFIG_AVFILTER
+    AVFilterContext *afilt_src = NULL, *afilt_out = NULL;
+    int ret = AVERROR(EINVAL);
+#endif
 
     if (stream_index < 0 || stream_index >= ic->nb_streams)
         return -1;
@@ -2264,6 +2412,48 @@ static int stream_component_open(VideoState *is, int stream_index)
         is->audio_diff_threshold = 2.0 * SDL_AUDIO_BUFFER_SIZE / avctx->sample_rate;
 
         memset(&is->audio_pkt, 0, sizeof(is->audio_pkt));
+
+#if CONFIG_AVFILTER
+    is->agraph = av_mallocz(sizeof(AVFilterGraph));
+    if (avfilter_open(&afilt_src, &input_audio_filter,  "asrc") < 0)   goto the_end;
+    if (avfilter_open(&afilt_out, &output_audio_filter, "aout") < 0)   goto the_end;
+
+    if ((ret = avfilter_init_filter(afilt_src, NULL, is)) < 0)         goto the_end;
+    if ((ret = avfilter_init_filter(afilt_out, NULL, NULL)) < 0)       goto the_end;
+
+
+    if (afilters) {
+        AVFilterInOut *outputs = av_malloc(sizeof(AVFilterInOut));
+        AVFilterInOut *inputs  = av_malloc(sizeof(AVFilterInOut));
+
+        outputs->name    = av_strdup("in");
+        outputs->filter  = afilt_src;
+        outputs->pad_idx = 0;
+        outputs->next    = NULL;
+
+        inputs->name    = av_strdup("out");
+        inputs->filter  = afilt_out;
+        inputs->pad_idx = 0;
+        inputs->next    = NULL;
+
+        if ((ret = avfilter_graph_parse(is->agraph, afilters, inputs, outputs, NULL)) < 0)
+            goto the_end;
+
+        av_freep(&afilters);
+
+    } else
+        if (avfilter_link(afilt_src, 0, afilt_out, 0) < 0)             goto the_end;
+
+    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_src)) < 0)  goto the_end;
+    if ((ret = avfilter_graph_add_filter(is->agraph, afilt_out)) < 0)  goto the_end;
+
+    if ((ret = avfilter_graph_check_validity(is->agraph, NULL)) < 0)   goto the_end;
+    if ((ret = avfilter_graph_config_formats(is->agraph, NULL)) < 0)   goto the_end;
+    if ((ret = avfilter_graph_config_links(is->agraph, NULL)) < 0)     goto the_end;
+
+    is->out_audio_filter = afilt_out;
+#endif
+
         packet_queue_init(&is->audioq);
         SDL_PauseAudio(0);
         break;
@@ -2287,6 +2477,12 @@ static int stream_component_open(VideoState *is, int stream_index)
         break;
     }
     return 0;
+#if CONFIG_AVFILTER
+the_end:
+    avfilter_graph_destroy(is->agraph);
+    av_freep(&(is->agraph));
+    return ret;
+#endif
 }
 
 static void stream_component_close(VideoState *is, int stream_index)
@@ -2308,6 +2504,10 @@ static void stream_component_close(VideoState *is, int stream_index)
         if (is->reformat_ctx)
             av_audio_convert_free(is->reformat_ctx);
         is->reformat_ctx = NULL;
+#if CONFIG_AVFILTER
+        avfilter_graph_destroy(is->agraph);
+        av_freep(&(is->agraph));
+#endif
         break;
     case AVMEDIA_TYPE_VIDEO:
         packet_queue_abort(&is->videoq);
@@ -3077,6 +3277,7 @@ static const OptionDef options[] = {
     { "window_title", OPT_STRING | HAS_ARG, {(void*)&window_title}, "set window title", "window title" },
 #if CONFIG_AVFILTER
     { "vf", OPT_STRING | HAS_ARG, {(void*)&vfilters}, "video filters", "filter list" },
+    { "af", OPT_STRING | HAS_ARG, {(void*)&afilters}, "audio filters", "filter list" },
 #endif
     { "rdftspeed", OPT_INT | HAS_ARG| OPT_AUDIO | OPT_EXPERT, {(void*)&rdftspeed}, "rdft speed", "msecs" },
     { "default", OPT_FUNC2 | HAS_ARG | OPT_AUDIO | OPT_VIDEO | OPT_EXPERT, {(void*)opt_default}, "generic catch all option", "" },

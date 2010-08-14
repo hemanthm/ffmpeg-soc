@@ -14,6 +14,8 @@ OBJS = allfilters.o                                                     \
        graphparser.o                                                    \
        parseutils.o                                                     \
 
+OBJS-$(CONFIG_NULLAUD_FILTER)                += af_nullaud.o
+
 OBJS-$(CONFIG_ASPECT_FILTER)                 += vf_aspect.o
 OBJS-$(CONFIG_CROP_FILTER)                   += vf_crop.o
 OBJS-$(CONFIG_FORMAT_FILTER)                 += vf_format.o

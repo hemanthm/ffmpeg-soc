@@ -31,6 +31,8 @@ version <next>:
 - RTP packetization and depacketization of VP8
 - hflip filter
 - Apple HTTP Live Streaming demuxer
+- audio filter support in libavfilter
+- ffplay -af option added for audio filters
 
 
 version 0.6:

@@ -16,6 +16,7 @@ OBJS = allfilters.o                                                     \
 
 OBJS-$(CONFIG_ANULL_FILTER)                  += af_anull.o
 OBJS-$(CONFIG_RESAMPLE_FILTER)               += af_resample.o
+OBJS-$(CONFIG_SOX_FILTER)                    += af_sox.o
 
 OBJS-$(CONFIG_ASPECT_FILTER)                 += vf_aspect.o
 OBJS-$(CONFIG_CROP_FILTER)                   += vf_crop.o

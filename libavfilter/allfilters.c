@@ -36,6 +36,7 @@ void avfilter_register_all(void)
 
     REGISTER_FILTER (ANULL,       anull,       af);
     REGISTER_FILTER (RESAMPLE,    resample,    af);
+    REGISTER_FILTER (SOX,         sox,         af);
 
     REGISTER_FILTER (ASPECT,      aspect,      vf);
     REGISTER_FILTER (CROP,        crop,        vf);

@@ -40,7 +40,6 @@ typedef struct {
     int64_t sample_rate;         ///< sample rate of data handled
     int nb_channels;             ///< number of channels in our channel layout
     int out_size;                ///< desired size of each output audio buffer
-    int sox_started;             ///< flag to check if sox has been started.
 } SoxContext;
 
 static int query_formats(AVFilterContext *ctx)
@@ -83,38 +82,34 @@ static int input_drain(sox_effect_t *effect,
     AVFilterBufferRef *samplesref;
     int input_nb_samples = 0;
 
-    if (!av_fifo_size(sox->in_fifo)) {
-        av_log(sox, AV_LOG_DEBUG,
-               "sox chain requested audio data when none available, sending silence!\n");
-        memset(o_samples, 0, *o_samples_size);
-        return SOX_SUCCESS;
+    if (av_fifo_size(sox->in_fifo)) {
+
+        // read first audio frame from queued input buffers and give it to sox.
+        av_fifo_generic_read(sox->in_fifo, &samplesref, sizeof(samplesref), NULL);
+
+        /**
+         * inside lavfi, nb_samples is number of samples in each channel, while in sox
+         * number of samples refers to the total number over all channels
+         */
+        input_nb_samples = samplesref->audio->samples_nb * sox->nb_channels;
+
+        // ensure that *o_samples_size is a multiple of the number of channels.
+        *o_samples_size -= *o_samples_size % sox->nb_channels;
+
+        /**
+         * FIXME: Right now, if sox chain accepts fewer samples than in one buffer, we drop
+         * remaining data. We should be taking the required data and preserving the rest.
+         * Luckily, this is highly unlikely.
+         */
+        if (*o_samples_size < input_nb_samples)
+            input_nb_samples = *o_samples_size;
+
+        memcpy(o_samples, samplesref->data[0], input_nb_samples*sizeof(int));
+        *o_samples_size = input_nb_samples;
+
+        avfilter_unref_buffer(samplesref);
     }
-
-    // read first audio frame from queued input buffers and give it to sox.
-    av_fifo_generic_read(sox->in_fifo, &samplesref, sizeof(samplesref), NULL);
-
-    /**
-     * inside lavfi, nb_samples is number of samples in each channel, while in sox
-     * number of samples refers to the total number over all channels
-     */
-    input_nb_samples = samplesref->audio->samples_nb * sox->nb_channels;
-
-    // ensure that *o_samples_size is a multiple of the number of channels.
-    *o_samples_size -= *o_samples_size % sox->nb_channels;
-
-    /**
-     * FIXME: Right now, if sox chain accepts fewer samples than in one buffer, we drop
-     * remaining data. We should be taking the required data and preserving the rest.
-     * Luckily, this is highly unlikely.
-     */
-    if (*o_samples_size < input_nb_samples)
-        input_nb_samples = *o_samples_size;
-
-    memcpy(o_samples, samplesref->data[0], input_nb_samples*sizeof(int));
-    *o_samples_size = input_nb_samples;
-
-    avfilter_unref_buffer(samplesref);
-    return SOX_SUCCESS;
+    return SOX_EOF;
 }
 
 /**
@@ -129,13 +124,15 @@ static int output_flow(sox_effect_t *effect UNUSED,
     SoxContext *sox = ((sox_inout_ctx *)effect->priv)->lavfi_ctx;
 
     // If our fifo runs out of space, we just drop this frame and keep going.
-    if (av_fifo_space(sox->out_fifo) < *i_samples_size * sizeof(int)) {
-        av_log(NULL, AV_LOG_ERROR,
-               "Buffering limit reached. Sox output data being dropped.\n");
-        return SOX_SUCCESS;
-    }
+    if (*i_samples_size > 0) {
+        if (av_fifo_space(sox->out_fifo) < *i_samples_size * sizeof(int)) {
+            av_log(NULL, AV_LOG_ERROR,
+                   "Buffering limit reached. Sox output data being dropped.\n");
+            return SOX_SUCCESS;
+        }
 
-    av_fifo_generic_write(sox->out_fifo, (void *)i_samples, *i_samples_size, NULL);
+        av_fifo_generic_write(sox->out_fifo, (void *)i_samples, *i_samples_size, NULL);
+    }
 
     // Set *o_samples_size to 0 since this is the last effect of the sox chain.
     *o_samples_size = 0;
@@ -164,7 +161,7 @@ static sox_effect_handler_t const *output_handler(void)
 
 #define INFIFO_SIZE 8
 #define OUTFIFO_SIZE 8192
-#define OUT_FRAME_SIZE 1024
+#define OUT_FRAME_SIZE 2048
 
 static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 {
@@ -214,7 +211,7 @@ static inline int add_effect_and_setopts(AVFilterContext *ctx, char *effect_str,
         av_log(ctx, AV_LOG_ERROR, "Sox error: '%s'.\n", sox_strerror(err));
         return AVERROR(EINVAL);
     }
-    if (nb_args)
+    if (nb_args >= 0)
         err = sox_effect_options(effect, nb_args, args);
     else
         err = sox_effect_options(effect, nb_args, NULL);
@@ -235,7 +232,7 @@ static int config_input(AVFilterLink *link)
     sox_encodinginfo_t *enc = av_malloc (sizeof(sox_encodinginfo_t));
     sox_signalinfo_t *in_signal_info = av_malloc (sizeof(sox_signalinfo_t));
 
-    char *token = NULL, param[16], *ioargs[] = {param};
+    char *token = NULL, param[32], *ioargs[] = {param};
     char *cpargs = av_strdup(sox->sox_args);
     int err = 0;
 
@@ -303,7 +300,9 @@ static int config_input(AVFilterLink *link)
 static void filter_samples(AVFilterLink *link, AVFilterBufferRef *samplesref)
 {
     SoxContext *sox = link->dst->priv;
+    AVFilterLink *outlink = link->dst->outputs[0];
     AVFilterBufferRef *outsamples;
+    int outsize = 0;
 
     if (av_fifo_space(sox->in_fifo) < sizeof(samplesref)) {
         av_log(NULL, AV_LOG_ERROR,
@@ -314,23 +313,22 @@ static void filter_samples(AVFilterLink *link, AVFilterBufferRef *samplesref)
     av_fifo_generic_write(sox->in_fifo, &samplesref, sizeof(samplesref), NULL);
 
     // start sox flow if this is the first audio frame we have got.
-    if (!sox->sox_started) {
-        sox_flow_effects(sox->chain, NULL, NULL);
-        sox->sox_started = 1;
-    }
+    sox_flow_effects(sox->chain, NULL, NULL);
 
     // libsox uses packed audio data internally.
     outsamples = avfilter_get_audio_buffer(link, AV_PERM_WRITE, SAMPLE_FMT_S32,
                                            sox->out_size, sox->ch_layout, 0);
 
     // send silence if no processed audio available from sox.
-    if (av_fifo_size(sox->out_fifo))
+    outsize = av_fifo_size(sox->out_fifo);
+    outsize = FFMIN(outsize, sox->out_size);
+    if (outsize)
         av_fifo_generic_read(sox->out_fifo, outsamples->data[0],
                              sox->out_size, NULL);
     else
         memset(outsamples->data[0], 0, sox->out_size);
 
-    filter_samples(link, outsamples);
+    avfilter_filter_samples(outlink, outsamples);
 }
 
 AVFilter avfilter_af_sox = {
@@ -343,7 +341,6 @@ AVFilter avfilter_af_sox = {
     .query_formats = query_formats,
     .inputs    = (AVFilterPad[]) {{ .name             = "default",
                                     .type             = AVMEDIA_TYPE_AUDIO,
-                                    .get_audio_buffer = avfilter_null_get_audio_buffer,
                                     .filter_samples   = filter_samples,
                                     .config_props     = config_input,
                                     .min_perms        = AV_PERM_READ },

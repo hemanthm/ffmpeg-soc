@@ -128,14 +128,22 @@ static int query_formats(AVFilterGraph *graph, AVClass *log_ctx)
             if(link && link->in_formats != link->out_formats) {
                 if(!avfilter_merge_formats(link->in_formats,
                                            link->out_formats)) {
+                    enum AVMediaType type = link->type;
                     AVFilterContext *scale;
                     char scale_args[256];
                     /* couldn't merge format lists. auto-insert scale filter */
-                    snprintf(inst_name, sizeof(inst_name), "auto-inserted scaler %d",
-                             scaler_count++);
-                    avfilter_open(&scale, avfilter_get_by_name("scale"), inst_name);
+                    const char *filt_name = type == AVMEDIA_TYPE_VIDEO ? "scale" : "resample";
+                    snprintf(inst_name, sizeof(inst_name), "auto-inserted %sr %d",
+                             filt_name, scaler_count++);
+                    avfilter_open(&scale, avfilter_get_by_name(filt_name),inst_name);
 
-                    snprintf(scale_args, sizeof(scale_args), "0:0:%s", graph->scale_sws_opts);
+                    if (type == AVMEDIA_TYPE_VIDEO)
+                        snprintf(scale_args, sizeof(scale_args), "0:0:%s",
+                                 graph->scale_sws_opts);
+                    if (type == AVMEDIA_TYPE_AUDIO)
+                        snprintf(scale_args, sizeof(scale_args), "%d:-1",
+                                 link->out_formats->formats[0]);
+
                     if(!scale || scale->filter->init(scale, scale_args, NULL) ||
                                  avfilter_insert_filter(link, scale, 0, 0)) {
                         avfilter_destroy(scale);

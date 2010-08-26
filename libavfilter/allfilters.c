@@ -51,6 +51,8 @@ void avfilter_register_all(void)
     REGISTER_FILTER (UNSHARP,     unsharp,     vf);
     REGISTER_FILTER (VFLIP,       vflip,       vf);
 
+    REGISTER_FILTER (ABUFFER,     abuffer,     asrc);
+
     REGISTER_FILTER (BUFFER,      buffer,      vsrc);
     REGISTER_FILTER (COLOR,       color,       vsrc);
     REGISTER_FILTER (NULLSRC,     nullsrc,     vsrc);

@@ -23,7 +23,7 @@
 
 #define LIBAVDEVICE_VERSION_MAJOR 52
 #define LIBAVDEVICE_VERSION_MINOR  2
-#define LIBAVDEVICE_VERSION_MICRO  0
+#define LIBAVDEVICE_VERSION_MICRO  1
 
 #define LIBAVDEVICE_VERSION_INT AV_VERSION_INT(LIBAVDEVICE_VERSION_MAJOR, \
                                                LIBAVDEVICE_VERSION_MINOR, \
@@ -34,17 +34,17 @@
 #define LIBAVDEVICE_BUILD       LIBAVDEVICE_VERSION_INT
 
 /**
- * Returns the LIBAVDEVICE_VERSION_INT constant.
+ * Return the LIBAVDEVICE_VERSION_INT constant.
  */
 unsigned avdevice_version(void);
 
 /**
- * Returns the libavdevice build-time configuration.
+ * Return the libavdevice build-time configuration.
  */
 const char *avdevice_configuration(void);
 
 /**
- * Returns the libavdevice license.
+ * Return the libavdevice license.
  */
 const char *avdevice_license(void);
 

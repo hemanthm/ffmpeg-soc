@@ -28,7 +28,7 @@
 #include "network.h"
 #include "rtsp.h"
 #include "internal.h"
-#include <libavutil/intreadwrite.h>
+#include "libavutil/intreadwrite.h"
 
 static int rtsp_write_record(AVFormatContext *s)
 {
@@ -48,7 +48,6 @@ static int rtsp_write_record(AVFormatContext *s)
 
 static int rtsp_write_header(AVFormatContext *s)
 {
-    RTSPState *rt = s->priv_data;
     int ret;
 
     ret = ff_rtsp_connect(s);
@@ -57,7 +56,7 @@ static int rtsp_write_header(AVFormatContext *s)
 
     if (rtsp_write_record(s) < 0) {
         ff_rtsp_close_streams(s);
-        url_close(rt->rtsp_hd);
+        ff_rtsp_close_connections(s);
         return AVERROR_INVALIDDATA;
     }
     return 0;
@@ -86,14 +85,14 @@ static int tcp_write_packet(AVFormatContext *s, RTSPStream *rtsp_st)
         size -= 4;
         if (packet_len > size || packet_len < 2)
             break;
-        if (ptr[1] >= 200 && ptr[1] <= 204)
+        if (ptr[1] >= RTCP_SR && ptr[1] <= RTCP_APP)
             id = rtsp_st->interleaved_max; /* RTCP */
         else
             id = rtsp_st->interleaved_min; /* RTP */
         interleave_header[0] = '$';
         interleave_header[1] = id;
         AV_WB16(interleave_header + 2, packet_len);
-        url_write(rt->rtsp_hd, interleaved_packet, 4 + packet_len);
+        url_write(rt->rtsp_hd_out, interleaved_packet, 4 + packet_len);
         ptr += packet_len;
         size -= packet_len;
     }
@@ -162,7 +161,7 @@ static int rtsp_write_close(AVFormatContext *s)
     ff_rtsp_send_cmd_async(s, "TEARDOWN", rt->control_uri, NULL);
 
     ff_rtsp_close_streams(s);
-    url_close(rt->rtsp_hd);
+    ff_rtsp_close_connections(s);
     ff_network_close();
     return 0;
 }

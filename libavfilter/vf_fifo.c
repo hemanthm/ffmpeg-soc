@@ -1,5 +1,4 @@
 /*
- * frame FIFO
  * copyright (c) 2007 Bobby Bingham
  *
  * This file is part of FFmpeg.
@@ -19,91 +18,91 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+/**
+ * @file
+ * FIFO buffering video filter
+ */
+
 #include "avfilter.h"
 
-typedef struct BufPic
-{
-    AVFilterPicRef *pic;
-    struct BufPic  *next;
+typedef struct BufPic {
+    AVFilterBufferRef *picref;
+    struct BufPic     *next;
 } BufPic;
 
-typedef struct
-{
+typedef struct {
     BufPic  root;
     BufPic *last;   ///< last buffered picture
-} BufferContext;
+} FifoContext;
 
 static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 {
-    BufferContext *buf = ctx->priv;
-    buf->last = &buf->root;
+    FifoContext *fifo = ctx->priv;
+    fifo->last = &fifo->root;
 
+    av_log(ctx, AV_LOG_INFO, "\n");
     return 0;
 }
 
 static av_cold void uninit(AVFilterContext *ctx)
 {
-    BufferContext *buf = ctx->priv;
+    FifoContext *fifo = ctx->priv;
     BufPic *pic, *tmp;
 
-    for(pic = buf->root.next; pic; pic = tmp) {
+    for (pic = fifo->root.next; pic; pic = tmp) {
         tmp = pic->next;
-        avfilter_unref_pic(pic->pic);
+        avfilter_unref_buffer(pic->picref);
         av_free(pic);
     }
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *inlink, AVFilterBufferRef *picref)
 {
-    BufferContext *buf = link->dst->priv;
+    FifoContext *fifo = inlink->dst->priv;
 
-    buf->last->next = av_mallocz(sizeof(BufPic));
-    buf->last = buf->last->next;
-    buf->last->pic = picref;
+    fifo->last->next = av_mallocz(sizeof(BufPic));
+    fifo->last = fifo->last->next;
+    fifo->last->picref = picref;
 }
 
-static void end_frame(AVFilterLink *link)
-{
-}
+static void end_frame(AVFilterLink *inlink) { }
 
-/* TODO: support forwarding slices as they come if the next filter has
- * requested a frame and we had none buffered */
-static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
-{
-}
+static void draw_slice(AVFilterLink *inlink, int y, int h, int slice_dir) { }
 
-static int request_frame(AVFilterLink *link)
+static int request_frame(AVFilterLink *outlink)
 {
-    BufferContext *buf = link->src->priv;
+    FifoContext *fifo = outlink->src->priv;
     BufPic *tmp;
+    int ret;
 
-    if(!buf->root.next)
-        if(avfilter_request_frame(link->src->inputs[0]))
-            return -1;
+    if (!fifo->root.next) {
+        if ((ret = avfilter_request_frame(outlink->src->inputs[0]) < 0))
+            return ret;
+    }
 
     /* by doing this, we give ownership of the reference to the next filter,
      * so we don't have to worry about dereferencing it ourselves. */
-    avfilter_start_frame(link, buf->root.next->pic);
-    avfilter_draw_slice(link, 0, buf->root.next->pic->h, 1);
-    avfilter_end_frame(link);
+    avfilter_start_frame(outlink, fifo->root.next->picref);
+    avfilter_draw_slice (outlink, 0, outlink->h, 1);
+    avfilter_end_frame  (outlink);
 
-    if(buf->last == buf->root.next)
-        buf->last = &buf->root;
-    tmp = buf->root.next->next;
-    av_free(buf->root.next);
-    buf->root.next = tmp;
+    if (fifo->last == fifo->root.next)
+        fifo->last = &fifo->root;
+    tmp = fifo->root.next->next;
+    av_free(fifo->root.next);
+    fifo->root.next = tmp;
 
     return 0;
 }
 
-AVFilter avfilter_vf_fifo =
-{
+AVFilter avfilter_vf_fifo = {
     .name      = "fifo",
+    .description = NULL_IF_CONFIG_SMALL("Buffer input images and send them when they are requested."),
 
     .init      = init,
     .uninit    = uninit,
 
-    .priv_size = sizeof(BufferContext),
+    .priv_size = sizeof(FifoContext),
 
     .inputs    = (AVFilterPad[]) {{ .name            = "default",
                                     .type            = AVMEDIA_TYPE_VIDEO,
@@ -118,4 +117,3 @@ AVFilter avfilter_vf_fifo =
                                     .request_frame   = request_frame, },
                                   { .name = NULL}},
 };
-

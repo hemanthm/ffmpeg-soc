@@ -114,6 +114,12 @@ static int sdp_parse_rtpmap(AVFormatContext *s,
                 break;
             }
         }
+        /* If no dynamic handler was found, check with the list of standard
+         * allocated types, if such a stream for some reason happens to
+         * use a private payload type. This isn't handled in rtpdec.c, since
+         * the format name from the rtpmap line never is passed into rtpdec. */
+        if (!rtsp_st->dynamic_handler)
+            codec->codec_id = ff_rtp_codec_id(buf, codec->codec_type);
     } else {
         /* We are in a standard case
          * (from http://www.iana.org/assignments/rtp-parameters). */
@@ -701,7 +707,14 @@ static void rtsp_parse_transport(RTSPMessageHeader *reply, const char *p)
                     get_word_sep(buf, sizeof(buf), ";,", &p);
                     get_sockaddr(buf, &th->destination);
                 }
+            } else if (!strcmp(parameter, "source")) {
+                if (*p == '=') {
+                    p++;
+                    get_word_sep(buf, sizeof(buf), ";,", &p);
+                    av_strlcpy(th->source, buf, sizeof(th->source));
+                }
             }
+
             while (*p != ';' && *p != '\0' && *p != ',')
                 p++;
             if (*p == ';')
@@ -1154,9 +1167,15 @@ static int make_setup_request(AVFormatContext *s, const char *host, int port,
         case RTSP_LOWER_TRANSPORT_UDP: {
             char url[1024];
 
-            /* XXX: also use address if specified */
-            ff_url_join(url, sizeof(url), "rtp", NULL, host,
-                        reply->transports[0].server_port_min, NULL);
+            /* Use source address if specified */
+            if (reply->transports[0].source[0]) {
+                ff_url_join(url, sizeof(url), "rtp", NULL,
+                            reply->transports[0].source,
+                            reply->transports[0].server_port_min, NULL);
+            } else {
+                ff_url_join(url, sizeof(url), "rtp", NULL, host,
+                            reply->transports[0].server_port_min, NULL);
+            }
             if (!(rt->server_type == RTSP_SERVER_WMS && i > 1) &&
                 rtp_set_remote_url(rtsp_st->rtp_handle, url) < 0) {
                 err = AVERROR_INVALIDDATA;
@@ -1226,6 +1245,7 @@ static int rtsp_read_play(AVFormatContext *s)
     char cmd[1024];
 
     av_log(s, AV_LOG_DEBUG, "hello state=%d\n", rt->state);
+    rt->nb_byes = 0;
 
     if (!(rt->server_type == RTSP_SERVER_REAL && rt->need_subscription)) {
         if (rt->state == RTSP_STATE_PAUSED) {
@@ -1653,7 +1673,7 @@ static int udp_read_packet(AVFormatContext *s, RTSPStream **prtsp_st,
     RTSPState *rt = s->priv_data;
     RTSPStream *rtsp_st;
     fd_set rfds;
-    int fd, fd_max, n, i, ret, tcp_fd, timeout_cnt = 0;
+    int fd, fd_rtcp, fd_max, n, i, ret, tcp_fd, timeout_cnt = 0;
     struct timeval tv;
 
     for (;;) {
@@ -1670,12 +1690,12 @@ static int udp_read_packet(AVFormatContext *s, RTSPStream **prtsp_st,
         for (i = 0; i < rt->nb_rtsp_streams; i++) {
             rtsp_st = rt->rtsp_streams[i];
             if (rtsp_st->rtp_handle) {
-                /* currently, we cannot probe RTCP handle because of
-                 * blocking restrictions */
                 fd = url_get_file_handle(rtsp_st->rtp_handle);
-                if (fd > fd_max)
-                    fd_max = fd;
+                fd_rtcp = rtp_get_rtcp_file_handle(rtsp_st->rtp_handle);
+                if (FFMAX(fd, fd_rtcp) > fd_max)
+                    fd_max = FFMAX(fd, fd_rtcp);
                 FD_SET(fd, &rfds);
+                FD_SET(fd_rtcp, &rfds);
             }
         }
         tv.tv_sec = 0;
@@ -1687,7 +1707,8 @@ static int udp_read_packet(AVFormatContext *s, RTSPStream **prtsp_st,
                 rtsp_st = rt->rtsp_streams[i];
                 if (rtsp_st->rtp_handle) {
                     fd = url_get_file_handle(rtsp_st->rtp_handle);
-                    if (FD_ISSET(fd, &rfds)) {
+                    fd_rtcp = rtp_get_rtcp_file_handle(rtsp_st->rtp_handle);
+                    if (FD_ISSET(fd_rtcp, &rfds) || FD_ISSET(fd, &rfds)) {
                         ret = url_read(rtsp_st->rtp_handle, buf, buf_size);
                         if (ret > 0) {
                             *prtsp_st = rtsp_st;
@@ -1776,6 +1797,9 @@ static int rtsp_fetch_packet(AVFormatContext *s, AVPacket *pkt)
     uint8_t buf[10 * RTP_MAX_PACKET_LENGTH];
     RTSPStream *rtsp_st;
 
+    if (rt->nb_byes == rt->nb_rtsp_streams)
+        return AVERROR_EOF;
+
     /* get next frames from the same RTP packet */
     if (rt->cur_transport_priv) {
         if (rt->transport == RTSP_TRANSPORT_RDT) {
@@ -1826,11 +1850,20 @@ static int rtsp_fetch_packet(AVFormatContext *s, AVPacket *pkt)
                  * as this one. */
                 int i;
                 for (i = 0; i < rt->nb_rtsp_streams; i++) {
-                    RTPDemuxContext *rtpctx2 = rtsp_st->transport_priv;
+                    RTPDemuxContext *rtpctx2 = rt->rtsp_streams[i]->transport_priv;
                     if (rtpctx2 &&
                         rtpctx2->first_rtcp_ntp_time == AV_NOPTS_VALUE)
                         rtpctx2->first_rtcp_ntp_time = rtpctx->first_rtcp_ntp_time;
                 }
+            }
+            if (ret == -RTCP_BYE) {
+                rt->nb_byes++;
+
+                av_log(s, AV_LOG_DEBUG, "Received BYE for stream %d (%d/%d)\n",
+                       rtsp_st->stream_index, rt->nb_byes, rt->nb_rtsp_streams);
+
+                if (rt->nb_byes == rt->nb_rtsp_streams)
+                    return AVERROR_EOF;
             }
         }
     }

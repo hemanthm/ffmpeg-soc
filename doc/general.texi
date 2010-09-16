@@ -460,6 +460,7 @@ following image formats are supported:
     @tab fourcc: 'smc '
 @item QuickTime video (RPZA) @tab     @tab  X
     @tab fourcc: rpza
+@item R10K AJA Kona 10-bit RGB Codec     @tab     @tab  X
 @item R210 Quicktime Uncompressed RGB 10-bit     @tab     @tab  X
 @item Raw Video              @tab  X  @tab  X
 @item RealVideo 1.0          @tab  X  @tab  X
@@ -535,6 +536,7 @@ following image formats are supported:
 @item ADPCM Electronic Arts R2  @tab     @tab  X
 @item ADPCM Electronic Arts R3  @tab     @tab  X
 @item ADPCM Electronic Arts XAS @tab     @tab  X
+@item ADPCM G.722            @tab     @tab  X
 @item ADPCM G.726            @tab  X  @tab  X
 @item ADPCM IMA AMV          @tab     @tab  X
     @tab Used in AMV files

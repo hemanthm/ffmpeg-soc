@@ -127,6 +127,9 @@ fate-atrac3-3: REF = $(SAMPLES)/atrac3/mc_sich_at3_132_small.pcm
 FATE_TESTS += fate-gsm
 fate-gsm: CMD = framecrc -i $(SAMPLES)/gsm/ciao.wav
 
+FATE_TESTS += fate-g722dec-1
+fate-g722dec-1: CMD = framecrc -ar 16000 -i $(SAMPLES)/g722/conf-adminmenu-162.g722
+
 FATE_TESTS += fate-msmpeg4v1
 fate-msmpeg4v1: CMD = framecrc -flags +bitexact -dct fastint -idct simple -i $(SAMPLES)/msmpeg4v1/mpg4.avi -an
 
@@ -184,3 +187,25 @@ fate-txd-16bpp: CMD = framecrc -i $(SAMPLES)/txd/misc.txd -pix_fmt bgra -an
 
 FATE_TESTS += fate-vp3
 fate-vp3: CMD = framecrc -i $(SAMPLES)/vp3/vp31.avi
+
+FATE_TESTS += fate-fax-g3
+fate-fax-g3: CMD = framecrc -i $(SAMPLES)/CCITT_fax/G31D.TIF
+
+FATE_TESTS += fate-fax-g3s
+fate-fax-g3s: CMD = framecrc -i $(SAMPLES)/CCITT_fax/G31DS.TIF
+
+FATE_TESTS += fate-ws_snd
+fate-ws_snd: CMD = md5  -i $(SAMPLES)/vqa/ws_snd.vqa -f s16le
+
+FATE_TESTS += fate-dxa-scummvm
+fate-dxa-scummvm: CMD = framecrc -i $(SAMPLES)/dxa/scummvm.dxa -pix_fmt rgb24
+
+FATE_TESTS += fate-mjpegb
+fate-mjpegb: CMD = framecrc -idct simple -flags +bitexact -i $(SAMPLES)/mjpegb/mjpegb_part.mov -an
+
+FATE_TESTS += fate-rv30
+fate-rv30: CMD = framecrc -flags +bitexact -dct fastint -idct simple -i $(SAMPLES)/real/rv30.rm -an
+
+FATE_TESTS += fate-sha
+fate-sha: libavutil/sha-test$(EXESUF)
+fate-sha: CMD = run libavutil/sha-test

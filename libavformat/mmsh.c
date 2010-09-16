@@ -117,7 +117,7 @@ static int read_data_packet(MMSHContext *mmsh, const int len)
     int res;
     if (len > sizeof(mms->in_buffer)) {
         av_log(NULL, AV_LOG_ERROR,
-               "Data packet length %d exceeds the in_buffer size %d\n",
+               "Data packet length %d exceeds the in_buffer size %zu\n",
                len, sizeof(mms->in_buffer));
         return AVERROR(EIO);
     }
@@ -192,7 +192,7 @@ static int get_http_header_data(MMSHContext *mmsh)
             if (len) {
                 if (len > sizeof(mms->in_buffer)) {
                     av_log(NULL, AV_LOG_ERROR,
-                           "Other packet len = %d exceed the in_buffer size %d\n",
+                           "Other packet len = %d exceed the in_buffer size %zu\n",
                            len, sizeof(mms->in_buffer));
                     return AVERROR(EIO);
                 }
@@ -214,7 +214,7 @@ static int mmsh_open(URLContext *h, const char *uri, int flags)
 {
     int i, port, err;
     char httpname[256], path[256], host[128], location[1024];
-    char *stream_selection;
+    char *stream_selection = NULL;
     char headers[1024];
     MMSHContext *mmsh;
     MMSContext *mms;

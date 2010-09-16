@@ -97,6 +97,7 @@ typedef struct RTSPTransportField {
     int ttl;
 
     struct sockaddr_storage destination; /**< destination IP address */
+    char source[INET6_ADDRSTRLEN + 1]; /**< source IP address */
 
     /** data/packet transport protocol; e.g. RTP or RDT */
     enum RTSPTransport transport;
@@ -303,6 +304,11 @@ typedef struct RTSPState {
 
     /** RTSP transport mode, such as plain or tunneled. */
     enum RTSPControlTransport control_transport;
+
+    /* Number of RTCP BYE packets the RTSP session has received.
+     * An EOF is propagated back if nb_byes == nb_streams.
+     * This is reset after a seek. */
+    int nb_byes;
 } RTSPState;
 
 /**

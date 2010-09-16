@@ -345,6 +345,9 @@ static int mov_read_dref(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
         uint32_t size = get_be32(pb);
         int64_t next = url_ftell(pb) + size - 4;
 
+        if (size < 12)
+            return -1;
+
         dref->type = get_le32(pb);
         get_be32(pb); // version + flags
         dprintf(c->fc, "type %.4s size %d\n", (char*)&dref->type, size);
@@ -559,6 +562,21 @@ static int mov_read_esds(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     return ff_mov_read_esds(c->fc, pb, atom);
 }
 
+static int mov_read_dac3(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
+{
+    AVStream *st;
+    int ac3info, acmod, lfeon;
+
+    st = c->fc->streams[c->fc->nb_streams-1];
+
+    ac3info = get_be24(pb);
+    acmod = (ac3info >> 11) & 0x7;
+    lfeon = (ac3info >> 10) & 0x1;
+    st->codec->channels = ((int[]){2,1,2,3,3,4,4,5})[acmod] + lfeon;
+
+    return 0;
+}
+
 static int mov_read_pasp(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
 {
     const int num = get_be32(pb);
@@ -569,12 +587,13 @@ static int mov_read_pasp(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
         return 0;
     st = c->fc->streams[c->fc->nb_streams-1];
 
-    if (den != 0) {
-        if ((st->sample_aspect_ratio.den != 1 || st->sample_aspect_ratio.num) && // default
-            (den != st->sample_aspect_ratio.den || num != st->sample_aspect_ratio.num))
-            av_log(c->fc, AV_LOG_WARNING,
-                   "sample aspect ratio already set to %d:%d, overriding by 'pasp' atom\n",
-                   st->sample_aspect_ratio.num, st->sample_aspect_ratio.den);
+    if ((st->sample_aspect_ratio.den != 1 || st->sample_aspect_ratio.num) && // default
+        (den != st->sample_aspect_ratio.den || num != st->sample_aspect_ratio.num)) {
+        av_log(c->fc, AV_LOG_WARNING,
+               "sample aspect ratio already set to %d:%d, ignoring 'pasp' atom (%d:%d)\n",
+               st->sample_aspect_ratio.num, st->sample_aspect_ratio.den,
+               num, den);
+    } else if (den != 0) {
         st->sample_aspect_ratio.num = num;
         st->sample_aspect_ratio.den = den;
     }
@@ -2245,6 +2264,7 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
 { MKTAG('u','d','t','a'), mov_read_default },
 { MKTAG('w','a','v','e'), mov_read_wave },
 { MKTAG('e','s','d','s'), mov_read_esds },
+{ MKTAG('d','a','c','3'), mov_read_dac3 }, /* AC-3 info */
 { MKTAG('w','i','d','e'), mov_read_wide }, /* place holder */
 { MKTAG('c','m','o','v'), mov_read_cmov },
 { 0, NULL }

@@ -351,12 +351,12 @@ av_cold int MPV_encode_init(AVCodecContext *avctx)
         av_log(avctx, AV_LOG_INFO, "impossible bitrate constraints, this will fail\n");
     }
 
-    if(avctx->rc_buffer_size && avctx->bit_rate*av_q2d(avctx->time_base) > avctx->rc_buffer_size){
+    if(avctx->rc_buffer_size && avctx->bit_rate*(int64_t)avctx->time_base.num > avctx->rc_buffer_size * (int64_t)avctx->time_base.den){
         av_log(avctx, AV_LOG_ERROR, "VBV buffer too small for bitrate\n");
         return -1;
     }
 
-    if(avctx->bit_rate*av_q2d(avctx->time_base) > avctx->bit_rate_tolerance){
+    if(!s->fixed_qscale && avctx->bit_rate*av_q2d(avctx->time_base) > avctx->bit_rate_tolerance){
         av_log(avctx, AV_LOG_ERROR, "bitrate tolerance too small for bitrate\n");
         return -1;
     }

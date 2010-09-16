@@ -164,6 +164,7 @@ External library support:
   --enable-bzlib           enable bzlib [autodetect]
   --enable-libopencore-amrnb enable AMR-NB de/encoding via libopencore-amrnb [no]
   --enable-libopencore-amrwb enable AMR-WB decoding via libopencore-amrwb [no]
+  --enable-libopencv       enable video filtering via libopencv [no]
   --enable-libdc1394       enable IIDC-1394 grabbing using libdc1394
                            and libraw1394 [no]
   --enable-libdirac        enable Dirac support via libdirac [no]
@@ -495,20 +496,29 @@ check_deps(){
     done
 }
 
+print_config_h(){
+    enabled $1 && v=1 || v=0
+    echo "#define $2 $v"
+}
+
+print_config_mak(){
+    enabled $1 && v= || v=!
+    echo "$v$2=yes"
+}
+
+print_config_asm(){
+    enabled $1 && echo "%define $2"
+}
+
 print_config(){
     pfx=$1
-    header=$2
-    makefile=$3
-    shift 3
+    files=$2
+    shift 2
     for cfg; do
         ucname="$(toupper $cfg)"
-        if enabled $cfg; then
-            echo "#define ${pfx}${ucname} 1" >> $header
-            echo "${pfx}${ucname}=yes" >> $makefile
-        else
-            echo "#define ${pfx}${ucname} 0" >> $header
-            echo "!${pfx}${ucname}=yes" >> $makefile
-        fi
+        for f in $files; do
+            "print_config_${f##*.}" $cfg ${pfx}${ucname} >>$f
+        done
     done
 }
 
@@ -878,6 +888,7 @@ CONFIG_LIST="
     libnut
     libopencore_amrnb
     libopencore_amrwb
+    libopencv
     libopenjpeg
     librtmp
     libschroedinger
@@ -1381,6 +1392,9 @@ rtp_protocol_select="udp_protocol"
 tcp_protocol_deps="network"
 udp_protocol_deps="network"
 
+# filters
+ocv_smooth_filter_deps="libopencv"
+
 # libraries
 avdevice_deps="avcodec avformat"
 avformat_deps="avcodec"
@@ -1779,6 +1793,7 @@ tmpfile TMPO  .o
 tmpfile TMPS  .S
 tmpfile TMPV  .ver
 tmpfile TMPSH .sh
+tmpfile TMPASM .asm
 
 unset -f mktemp
 
@@ -1799,7 +1814,16 @@ filter_cflags=echo
 filter_cppflags=echo
 filter_asflags=echo
 
-if   $cc -v 2>&1 | grep -qi ^gcc; then
+if   $cc -v 2>&1 | grep -q '^gcc.*LLVM'; then
+    cc_type=llvm_gcc
+    cc_version=__VERSION__
+    gcc_extra_ver=$(expr "$($cc --version | head -n1)" : '.*\((.*)\)')
+    cc_ident="llvm-gcc $($cc -dumpversion) $gcc_extra_ver"
+    CC_DEPFLAGS='-MMD -MF $(@:.o=.d) -MT $@'
+    AS_DEPFLAGS='-MMD -MF $(@:.o=.d) -MT $@'
+    speed_cflags='-O3'
+    size_cflags='-Os'
+elif $cc -v 2>&1 | grep -qi ^gcc; then
     cc_type=gcc
     cc_version=__VERSION__
     gcc_extra_ver=$(expr "$($cc --version | head -n1)" : '.*\((.*)\)')
@@ -1943,7 +1967,7 @@ elif $cc -V 2>&1 | grep -q Sun; then
             esac
         done
     }
-elif $cc -v 2>&1 | grep -q PathScale; then
+elif $cc -v 2>&1 | grep -q 'PathScale\|Path64'; then
     cc_type=pathscale
     cc_version=__PATHSCALE__
     cc_ident=$($cc -v 2>&1 | head -n1 | tr -d :)
@@ -1969,7 +1993,7 @@ add_asflags $extra_cflags
 
 if test -n "$sysroot"; then
     case "$cc_type" in
-        gcc)
+        gcc|llvm_gcc)
             add_cppflags --sysroot="$sysroot"
             add_ldflags --sysroot="$sysroot"
         ;;
@@ -1988,7 +2012,7 @@ if test "$cpu" = host; then
     enabled cross_compile && die "--cpu=host makes no sense when cross-compiling."
 
     case "$cc_type" in
-        gcc)
+        gcc|llvm_gcc)
             check_native(){
                 $cc $1=native -v -c -o $TMPO $TMPC >$TMPE 2>&1 || return
                 sed -n "/$1=/{
@@ -2564,7 +2588,7 @@ EOF
 
     check_asm bswap '"bswap %%eax" ::: "%eax"'
 
-    YASMFLAGS="-f $objformat -DARCH_$(toupper $subarch)"
+    YASMFLAGS="-f $objformat"
     enabled     x86_64        && append YASMFLAGS "-m amd64"
     enabled     pic           && append YASMFLAGS "-DPIC"
     test -n "$extern_prefix"  && append YASMFLAGS "-DPREFIX"
@@ -2690,10 +2714,12 @@ enabled libdirac   && add_cflags $(pkg-config --cflags dirac) &&
                       require  libdirac libdirac_encoder/dirac_encoder.h dirac_encoder_init $(pkg-config --libs dirac)
 enabled libfaac    && require2 libfaac "stdint.h faac.h" faacEncGetVersion -lfaac
 enabled libgsm     && require  libgsm gsm/gsm.h gsm_create -lgsm
-enabled libmp3lame && require  libmp3lame lame/lame.h lame_init -lmp3lame
+enabled libmp3lame && require  libmp3lame lame/lame.h hip_decode_init -lmp3lame
 enabled libnut     && require  libnut libnut.h nut_demuxer_init -lnut
 enabled libopencore_amrnb  && require libopencore_amrnb opencore-amrnb/interf_dec.h Decoder_Interface_init -lopencore-amrnb
 enabled libopencore_amrwb  && require libopencore_amrwb opencore-amrwb/dec_if.h D_IF_init -lopencore-amrwb
+enabled libopencv  && { check_lib opencv/cv.h cvCreateImageHeader $(pkg-config --libs opencv) ||
+                        die "ERROR: libopencv not found"; }
 enabled libopenjpeg && require libopenjpeg openjpeg.h opj_version -lopenjpeg
 enabled librtmp    && { check_lib librtmp/rtmp.h RTMP_Socket $(pkg-config --libs librtmp) ||
                         die "ERROR: librtmp not found or RTMP_Socket() missing, librtmp version must be >= 2.2.f"; }
@@ -2876,7 +2902,10 @@ elif enabled gcc; then
     check_cflags -fno-tree-vectorize
     check_cflags -Werror=implicit-function-declaration
     check_cflags -Werror=missing-prototypes
+elif enabled llvm_gcc; then
+    check_cflags -mllvm -stack-alignment=16
 elif enabled clang; then
+    check_cflags -mllvm -stack-alignment=16
     check_cflags -Qunused-arguments
 elif enabled armcc; then
     # 2523: use of inline assembler is deprecated
@@ -2975,6 +3004,7 @@ echo "libmp3lame enabled        ${libmp3lame-no}"
 echo "libnut enabled            ${libnut-no}"
 echo "libopencore-amrnb support ${libopencore_amrnb-no}"
 echo "libopencore-amrwb support ${libopencore_amrwb-no}"
+echo "libopencv support         ${libopencv-no}"
 echo "libopenjpeg enabled       ${libopenjpeg-no}"
 echo "librtmp enabled           ${librtmp-no}"
 echo "libschroedinger enabled   ${libschroedinger-no}"
@@ -3049,6 +3079,8 @@ if enabled source_path_used; then
 fi
 
 enabled stripping || strip="echo skipping strip"
+
+config_files="$TMPH config.mak"
 
 cat > config.mak <<EOF
 # Automatically generated by configure - do not modify!
@@ -3165,21 +3197,26 @@ if enabled small || disabled optimizations; then
     echo "#define av_always_inline"  >> $TMPH
 fi
 
-print_config ARCH_   $TMPH config.mak $ARCH_LIST
-print_config HAVE_   $TMPH config.mak $HAVE_LIST
-print_config CONFIG_ $TMPH config.mak $CONFIG_LIST       \
-                                      $CONFIG_EXTRA      \
-                                      $DECODER_LIST      \
-                                      $ENCODER_LIST      \
-                                      $HWACCEL_LIST      \
-                                      $PARSER_LIST       \
-                                      $BSF_LIST          \
-                                      $DEMUXER_LIST      \
-                                      $MUXER_LIST        \
-                                      $FILTER_LIST       \
-                                      $PROTOCOL_LIST     \
-                                      $INDEV_LIST        \
-                                      $OUTDEV_LIST       \
+if enabled yasm; then
+    append config_files $TMPASM
+    printf '' >$TMPASM
+fi
+
+print_config ARCH_   "$config_files" $ARCH_LIST
+print_config HAVE_   "$config_files" $HAVE_LIST
+print_config CONFIG_ "$config_files" $CONFIG_LIST       \
+                                     $CONFIG_EXTRA      \
+                                     $DECODER_LIST      \
+                                     $ENCODER_LIST      \
+                                     $HWACCEL_LIST      \
+                                     $PARSER_LIST       \
+                                     $BSF_LIST          \
+                                     $DEMUXER_LIST      \
+                                     $MUXER_LIST        \
+                                     $FILTER_LIST       \
+                                     $PROTOCOL_LIST     \
+                                     $INDEV_LIST        \
+                                     $OUTDEV_LIST       \
 
 cat >>config.mak <<EOF
 ACODEC_TESTS=$(print_enabled -n _test $ACODEC_TESTS)
@@ -3196,13 +3233,15 @@ echo "endif # FFMPEG_CONFIG_MAK" >> config.mak
 cp_if_changed $TMPH config.h
 touch .config
 
+enabled yasm && cp_if_changed $TMPASM config.asm
+
 cat > $TMPH <<EOF
 /* Generated by ffconf */
 #ifndef AVUTIL_AVCONFIG_H
 #define AVUTIL_AVCONFIG_H
 EOF
 
-print_config AV_HAVE_ $TMPH /dev/null $HAVE_LIST_PUB
+print_config AV_HAVE_ $TMPH $HAVE_LIST_PUB
 
 echo "#endif /* AVUTIL_AVCONFIG_H */" >> $TMPH
 

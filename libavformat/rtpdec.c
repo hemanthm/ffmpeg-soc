@@ -74,13 +74,31 @@ void av_register_rtp_dynamic_payload_handlers(void)
 
 static int rtcp_parse_packet(RTPDemuxContext *s, const unsigned char *buf, int len)
 {
-    if (buf[1] != RTCP_SR)
-        return -1;
-    s->last_rtcp_ntp_time = AV_RB64(buf + 8);
-    if (s->first_rtcp_ntp_time == AV_NOPTS_VALUE)
-        s->first_rtcp_ntp_time = s->last_rtcp_ntp_time;
-    s->last_rtcp_timestamp = AV_RB32(buf + 16);
-    return 0;
+    int payload_len;
+    while (len >= 2) {
+        switch (buf[1]) {
+        case RTCP_SR:
+            if (len < 16) {
+                av_log(NULL, AV_LOG_ERROR, "Invalid length for RTCP SR packet\n");
+                return AVERROR_INVALIDDATA;
+            }
+            payload_len = (AV_RB16(buf + 2) + 1) * 4;
+
+            s->last_rtcp_ntp_time = AV_RB64(buf + 8);
+            if (s->first_rtcp_ntp_time == AV_NOPTS_VALUE)
+                s->first_rtcp_ntp_time = s->last_rtcp_ntp_time;
+            s->last_rtcp_timestamp = AV_RB32(buf + 16);
+
+            buf += payload_len;
+            len -= payload_len;
+            break;
+        case RTCP_BYE:
+            return -RTCP_BYE;
+        default:
+            return -1;
+        }
+    }
+    return -1;
 }
 
 #define RTP_SEQ_MOD (1<<16)
@@ -347,6 +365,13 @@ RTPDemuxContext *rtp_parse_open(AVFormatContext *s1, AVStream *st, URLContext *r
         case CODEC_ID_H264:
             st->need_parsing = AVSTREAM_PARSE_FULL;
             break;
+        case CODEC_ID_ADPCM_G722:
+            av_set_pts_info(st, 32, 1, st->codec->sample_rate);
+            /* According to RFC 3551, the stream clock rate is 8000
+             * even if the sample rate is 16000. */
+            if (st->codec->sample_rate == 8000)
+                st->codec->sample_rate = 16000;
+            break;
         default:
             if (st->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
                 av_set_pts_info(st, 32, 1, st->codec->sample_rate);
@@ -435,8 +460,7 @@ int rtp_parse_packet(RTPDemuxContext *s, AVPacket *pkt,
     if ((buf[0] & 0xc0) != (RTP_VERSION << 6))
         return -1;
     if (buf[1] >= RTCP_SR && buf[1] <= RTCP_APP) {
-        rtcp_parse_packet(s, buf, len);
-        return -1;
+        return rtcp_parse_packet(s, buf, len);
     }
     payload_type = buf[1] & 0x7f;
     if (buf[1] & 0x80)

@@ -538,8 +538,8 @@ static int ebml_level_end(MatroskaDemuxContext *matroska)
 static int ebml_read_num(MatroskaDemuxContext *matroska, ByteIOContext *pb,
                          int max_size, uint64_t *number)
 {
-    int len_mask = 0x80, read = 1, n = 1;
-    int64_t total = 0;
+    int read = 1, n = 1;
+    uint64_t total = 0;
 
     /* The first byte tells us the length in bytes - get_byte() can normally
      * return 0, but since that's not a valid first ebmlID byte, we can
@@ -556,10 +556,7 @@ static int ebml_read_num(MatroskaDemuxContext *matroska, ByteIOContext *pb,
     }
 
     /* get the length of the EBML number */
-    while (read <= max_size && !(total & len_mask)) {
-        read++;
-        len_mask >>= 1;
-    }
+    read = 8 - ff_log2_tab[total];
     if (read > max_size) {
         int64_t pos = url_ftell(pb) - 1;
         av_log(matroska->ctx, AV_LOG_ERROR,
@@ -569,13 +566,27 @@ static int ebml_read_num(MatroskaDemuxContext *matroska, ByteIOContext *pb,
     }
 
     /* read out length */
-    total &= ~len_mask;
+    total ^= 1 << ff_log2_tab[total];
     while (n++ < read)
         total = (total << 8) | get_byte(pb);
 
     *number = total;
 
     return read;
+}
+
+/**
+ * Read a EBML length value.
+ * This needs special handling for the "unknown length" case which has multiple
+ * encodings.
+ */
+static int ebml_read_length(MatroskaDemuxContext *matroska, ByteIOContext *pb,
+                            uint64_t *number)
+{
+    int res = ebml_read_num(matroska, pb, 8, number);
+    if (res > 0 && *number + 1 == 1ULL << (7 * res))
+        *number = 0xffffffffffffffULL;
+    return res;
 }
 
 /*
@@ -586,7 +597,7 @@ static int ebml_read_uint(ByteIOContext *pb, int size, uint64_t *num)
 {
     int n = 0;
 
-    if (size < 1 || size > 8)
+    if (size > 8)
         return AVERROR_INVALIDDATA;
 
     /* big-endian ordering; build up number */
@@ -603,7 +614,9 @@ static int ebml_read_uint(ByteIOContext *pb, int size, uint64_t *num)
  */
 static int ebml_read_float(ByteIOContext *pb, int size, double *num)
 {
-    if (size == 4) {
+    if (size == 0) {
+        *num = 0;
+    } else if (size == 4) {
         *num= av_int2flt(get_be32(pb));
     } else if(size==8){
         *num= av_int2dbl(get_be64(pb));
@@ -783,7 +796,7 @@ static int ebml_parse_elem(MatroskaDemuxContext *matroska,
 
     if (syntax->type != EBML_PASS && syntax->type != EBML_STOP) {
         matroska->current_id = 0;
-        if ((res = ebml_read_num(matroska, pb, 8, &length)) < 0)
+        if ((res = ebml_read_length(matroska, pb, &length)) < 0)
             return res;
     }
 
